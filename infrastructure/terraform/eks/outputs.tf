@@ -22,3 +22,13 @@ output "kubectl_config_command" {
   description = "Command to configure kubectl"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main.name}"
 }
+
+output "node_group_id" {
+  description = "EKS node group ID"
+  value       = aws_eks_node_group.main.id
+}
+
+output "scale_down_command" {
+  description = "Command to scale down nodes to 0 (save costs)"
+  value       = "kubectl scale deployment --all --replicas=0 --all-namespaces"
+}

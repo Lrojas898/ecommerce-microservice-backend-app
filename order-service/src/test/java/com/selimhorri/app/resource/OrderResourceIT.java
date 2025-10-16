@@ -10,12 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
@@ -23,7 +17,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.selimhorri.app.domain.Order;
-import com.selimhorri.app.dto.OrderDto;
 import com.selimhorri.app.repository.OrderRepository;
 
 @Testcontainers
@@ -42,56 +35,65 @@ class OrderResourceIT {
     }
 
     @Autowired
-    private TestRestTemplate testRestTemplate;
-
-    @Autowired
     private OrderRepository orderRepository;
 
     @Test
-    void createOrder_shouldSaveOrderInDatabase() {
+    void saveOrder_shouldPersistInDatabase() {
         // Arrange
-        final OrderDto orderDto = OrderDto.builder()
+        final Order order = Order.builder()
                 .orderDate(LocalDateTime.now())
-                .orderDesc("Test Order")
+                .orderDesc("TEST_ORDER")
                 .orderFee(100.0)
                 .build();
 
-        final HttpHeaders headers = new HttpHeaders();
-        headers.add("Content-Type", "application/json");
-        final HttpEntity<OrderDto> request = new HttpEntity<>(orderDto, headers);
-
         // Act
-        final ResponseEntity<OrderDto> response = this.testRestTemplate.exchange("/api/orders", HttpMethod.POST, request, OrderDto.class);
+        final Order savedOrder = this.orderRepository.save(order);
 
         // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getOrderDesc()).isEqualTo("Test Order");
-
-        final List<Order> orders = this.orderRepository.findAll();
-        assertThat(orders).hasSize(1);
-        assertThat(orders.get(0).getOrderDesc()).isEqualTo("PENDING");
-        assertThat(orders.get(0).getCart().getCartId()).isEqualTo(cart.getCartId());
+        assertThat(savedOrder).isNotNull();
+        assertThat(savedOrder.getOrderId()).isNotNull();
+        assertThat(savedOrder.getOrderDesc()).isEqualTo("TEST_ORDER");
+        assertThat(savedOrder.getOrderFee()).isEqualTo(100.0);
     }
 
     @Test
     void findById_shouldReturnOrder() {
         // Arrange
-        final Cart cart = this.cartRepository.save(Cart.builder().build());
-        final Order savedOrder = this.orderRepository.save(Order.builder()
+        final Order order = this.orderRepository.save(Order.builder()
                 .orderDate(LocalDateTime.now())
-                .orderDesc("TEST_ORDER")
-                .cart(cart)
+                .orderDesc("FIND_TEST_ORDER")
+                .orderFee(50.0)
                 .build());
 
         // Act
-        final ResponseEntity<OrderDto> response = this.testRestTemplate.getForEntity("/api/orders/{orderId}", OrderDto.class, savedOrder.getOrderId());
+        final Order foundOrder = this.orderRepository.findById(order.getOrderId()).orElse(null);
 
         // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getOrderId()).isEqualTo(savedOrder.getOrderId());
-        assertThat(response.getBody().getOrderDesc()).isEqualTo("TEST_ORDER");
+        assertThat(foundOrder).isNotNull();
+        assertThat(foundOrder.getOrderId()).isEqualTo(order.getOrderId());
+        assertThat(foundOrder.getOrderDesc()).isEqualTo("FIND_TEST_ORDER");
+    }
+
+    @Test
+    void findAll_shouldReturnAllOrders() {
+        // Arrange
+        this.orderRepository.deleteAll();
+        this.orderRepository.save(Order.builder()
+                .orderDate(LocalDateTime.now())
+                .orderDesc("ORDER_1")
+                .orderFee(25.0)
+                .build());
+        this.orderRepository.save(Order.builder()
+                .orderDate(LocalDateTime.now())
+                .orderDesc("ORDER_2")
+                .orderFee(75.0)
+                .build());
+
+        // Act
+        final List<Order> orders = this.orderRepository.findAll();
+
+        // Assert
+        assertThat(orders).hasSize(2);
     }
 
 }

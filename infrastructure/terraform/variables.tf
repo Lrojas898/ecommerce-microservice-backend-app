@@ -19,25 +19,25 @@ variable "environment" {
 variable "jenkins_instance_type" {
   description = "EC2 instance type for Jenkins"
   type        = string
-  default     = "t3.medium"
+  default     = "t2.micro"
 }
 
 variable "eks_node_instance_type" {
   description = "EC2 instance type for EKS nodes"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "eks_desired_capacity" {
   description = "Desired number of EKS nodes"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "eks_min_capacity" {
   description = "Minimum number of EKS nodes"
   type        = number
-  default     = 2
+  default     = 0
 }
 
 variable "eks_max_capacity" {

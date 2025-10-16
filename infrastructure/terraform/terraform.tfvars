@@ -1,8 +1,8 @@
 aws_region                = "us-east-1"
 project_name              = "ecommerce-microservices"
 environment               = "dev"
-jenkins_instance_type     = "t3.medium"
-eks_node_instance_type    = "t3.medium"
+jenkins_instance_type     = "t2.micro"      # Free Tier eligible
+eks_node_instance_type    = "t2.micro"      # Free Tier eligible
 eks_desired_capacity      = 2
 eks_min_capacity          = 2
 eks_max_capacity          = 4

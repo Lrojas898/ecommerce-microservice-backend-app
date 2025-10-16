@@ -8,6 +8,11 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1f"]
+  }
 }
 
 # Get AWS account ID
@@ -31,15 +36,15 @@ module "jenkins" {
   allowed_cidr_blocks   = var.allowed_cidr_blocks
 }
 
-# EKS Module (comentado - crear manualmente con eksctl)
-# module "eks" {
-#   source = "./eks"
-#
-#   project_name           = var.project_name
-#   aws_region             = var.aws_region
-#   eks_node_instance_type = var.eks_node_instance_type
-#   eks_desired_capacity   = var.eks_desired_capacity
-#   eks_min_capacity       = var.eks_min_capacity
-#   eks_max_capacity       = var.eks_max_capacity
-#   subnet_ids             = data.aws_subnets.default.ids
-# }
+# EKS Module
+module "eks" {
+  source = "./eks"
+
+  project_name           = var.project_name
+  aws_region             = var.aws_region
+  eks_node_instance_type = var.eks_node_instance_type
+  eks_desired_capacity   = var.eks_desired_capacity
+  eks_min_capacity       = var.eks_min_capacity
+  eks_max_capacity       = var.eks_max_capacity
+  subnet_ids             = data.aws_subnets.default.ids
+}

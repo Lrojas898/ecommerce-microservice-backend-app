@@ -30,53 +30,73 @@ output "get_jenkins_password" {
   value       = module.jenkins.get_jenkins_password_command
 }
 
+# EKS Outputs
+output "eks_cluster_name" {
+  description = "EKS cluster name"
+  value       = module.eks.cluster_name
+}
+
+output "eks_cluster_endpoint" {
+  description = "EKS cluster endpoint"
+  value       = module.eks.cluster_endpoint
+}
+
+output "eks_kubectl_config" {
+  description = "kubectl config command"
+  value       = module.eks.kubectl_config_command
+}
+
+output "eks_scale_down_command" {
+  description = "Command to scale down to save costs"
+  value       = module.eks.scale_down_command
+}
+
 output "next_steps" {
   description = "Next steps after infrastructure deployment"
   value       = <<-EOT
-    
+
     ═══════════════════════════════════════════════════════════════════
     ✅ INFRAESTRUCTURA DESPLEGADA EXITOSAMENTE
     ═══════════════════════════════════════════════════════════════════
-    
+
     📦 ECR REPOSITORIES CREADOS:
     ${join("\n    ", [for name, url in module.ecr.repository_urls : "${name}: ${url}"])}
-    
+
     🔐 ECR LOGIN:
        ${module.ecr.ecr_login_command}
-    
+
     📋 JENKINS SERVER:
        URL: ${module.jenkins.jenkins_url}
        IP:  ${module.jenkins.jenkins_public_ip}
        SSH: ${module.jenkins.jenkins_ssh_command}
-       
+
        Obtener contraseña:
        ${module.jenkins.get_jenkins_password_command}
-    
-    📋 CREAR EKS CLUSTER (opcional):
-    
-       eksctl create cluster \
-         --name ecommerce-cluster \
-         --region us-east-1 \
-         --nodegroup-name standard-workers \
-         --node-type t3.medium \
-         --nodes 2 \
-         --managed
-       
-       aws eks update-kubeconfig --region us-east-1 --name ecommerce-cluster
-       
+
+    ☸️  EKS CLUSTER:
+       Nombre: ${module.eks.cluster_name}
+       Endpoint: ${module.eks.cluster_endpoint}
+
+       Configurar kubectl:
+       ${module.eks.kubectl_config_command}
+
+       Crear namespaces:
        kubectl create namespace dev
-       kubectl create namespace staging  
+       kubectl create namespace staging
        kubectl create namespace production
-    
+
+       ⚠️  PARA AHORRAR COSTOS (apagar sin eliminar):
+       ${module.eks.scale_down_command}
+
     📋 SIGUIENTES PASOS:
-    
+
        1. Acceder a Jenkins: ${module.jenkins.jenkins_url}
-       2. Configurar Jenkins (instalar plugins)
-       3. Build una imagen: ./infrastructure/scripts/build-and-push.sh user-service
-       4. Crear pipelines en Jenkins
-       5. (Opcional) Crear cluster EKS
-       6. Desplegar servicios
-    
+       2. Configurar kubectl: ${module.eks.kubectl_config_command}
+       3. Crear namespaces de K8s
+       4. Build y push imágenes: ./infrastructure/scripts/build-and-push.sh user-service
+       5. Desplegar en K8s: kubectl apply -f infrastructure/kubernetes/base/
+       6. Configurar pipelines en Jenkins
+
     ═══════════════════════════════════════════════════════════════════
   EOT
 }
