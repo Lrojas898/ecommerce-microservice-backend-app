@@ -1,12 +1,28 @@
+# Multi-stage build for favourite-service
+FROM maven:3.8.7-openjdk-18-slim AS build
+WORKDIR /app
 
-FROM openjdk:11
-ARG PROJECT_VERSION=0.1.0
-RUN mkdir -p /home/app
-WORKDIR /home/app
-ENV SPRING_PROFILES_ACTIVE dev
-COPY favourite-service/ .
-ADD favourite-service/target/favourite-service-v${PROJECT_VERSION}.jar favourite-service.jar
-EXPOSE 8800
-ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "favourite-service.jar"]
+# Copy parent pom and proxy-client (dependency)
+COPY pom.xml ./
+COPY proxy-client ./proxy-client
+COPY favourite-service ./favourite-service
 
+# Build the application
+RUN mvn clean package -pl favourite-service -am -DskipTests
 
+# Runtime stage
+FROM openjdk:11-jre-slim
+WORKDIR /app
+
+# Copy the built jar
+COPY --from=build /app/favourite-service/target/favourite-service-*.jar app.jar
+
+# Expose port
+EXPOSE 8086
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:8086/actuator/health || exit 1
+
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]

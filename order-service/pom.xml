@@ -22,6 +22,11 @@
 	
 	<dependencies>
 		<dependency>
+			<groupId>com.selimhorri</groupId>
+			<artifactId>proxy-client</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter</artifactId>
 		</dependency>

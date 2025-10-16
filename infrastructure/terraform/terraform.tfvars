@@ -1,0 +1,9 @@
+aws_region                = "us-east-1"
+project_name              = "ecommerce-microservices"
+environment               = "dev"
+jenkins_instance_type     = "t3.medium"
+eks_node_instance_type    = "t3.medium"
+eks_desired_capacity      = 2
+eks_min_capacity          = 2
+eks_max_capacity          = 4
+allowed_cidr_blocks       = ["0.0.0.0/0"]  # CHANGE THIS in production!

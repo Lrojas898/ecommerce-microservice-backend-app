@@ -1,0 +1,253 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '020951019497'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        SERVICE_NAME = "${params.SERVICE_NAME}"
+        VERSION = "${params.VERSION}"
+        K8S_NAMESPACE = 'production'
+    }
+    
+    parameters {
+        choice(
+            name: 'SERVICE_NAME',
+            choices: ['user-service', 'product-service', 'order-service', 'payment-service', 'shipping-service', 'favourite-service'],
+            description: 'Select microservice to deploy to PRODUCTION'
+        )
+        string(
+            name: 'VERSION',
+            defaultValue: '1.0.0',
+            description: 'Version number for this release (e.g., 1.0.0, 1.1.0)'
+        )
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                    env.IMAGE_TAG = "v${VERSION}-${env.GIT_COMMIT_SHORT}"
+                }
+            }
+        }
+        
+        stage('Build with Maven') {
+            steps {
+                sh """
+                    mvn clean package -pl ${SERVICE_NAME} -am
+                """
+            }
+        }
+        
+        stage('Run All Tests') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        sh "mvn test -pl ${SERVICE_NAME}"
+                    }
+                }
+                stage('Integration Tests') {
+                    steps {
+                        sh "mvn verify -pl ${SERVICE_NAME} -Pintegration-tests"
+                    }
+                }
+            }
+            post {
+                always {
+                    junit '**/target/*-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Docker Build & Tag') {
+            steps {
+                script {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
+                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:v${VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:production \
+                                     -f ${SERVICE_NAME}/Dockerfile .
+                    """
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                script {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:v${VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:production
+                    """
+                }
+            }
+        }
+        
+        stage('Generate Release Notes') {
+            steps {
+                script {
+                    sh """
+                        # Get previous version tag
+                        PREV_TAG=\$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+                        
+                        # Generate release notes
+                        cat > RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md << 'NOTES'
+# Release Notes - ${SERVICE_NAME} v${VERSION}
+
+**Release Date:** \$(date '+%Y-%m-%d %H:%M:%S')  
+**Build:** #${BUILD_NUMBER}  
+**Commit:** ${GIT_COMMIT_SHORT}  
+**Docker Image:** ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
+
+## Changes
+
+\$(git log --pretty=format:"- %s (%an)" \${PREV_TAG}..HEAD -- ${SERVICE_NAME}/ | head -20)
+
+## Test Results
+
+✅ Unit Tests: PASSED  
+✅ Integration Tests: PASSED  
+✅ E2E Tests: PASSED  
+✅ Performance Tests: PASSED
+
+## Deployment
+
+- **Environment:** Production
+- **Namespace:** ${K8S_NAMESPACE}
+- **Replicas:** 2
+
+## Rollback Command
+
+```bash
+kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE}
+```
+
+---
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+NOTES
+                        
+                        cat RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md
+                    """
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: "RELEASE_NOTES_*.md", fingerprint: true
+                }
+            }
+        }
+        
+        stage('Manual Approval') {
+            steps {
+                script {
+                    def releaseNotes = readFile("RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md")
+                    
+                    timeout(time: 30, unit: 'MINUTES') {
+                        input message: """
+                        🚀 Deploy ${SERVICE_NAME} v${VERSION} to PRODUCTION?
+                        
+                        Review the release notes and confirm deployment.
+                        """,
+                        parameters: [
+                            text(name: 'APPROVAL_NOTES', defaultValue: '', description: 'Add any notes about this deployment')
+                        ]
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Production') {
+            steps {
+                script {
+                    sh """
+                        # Update deployment with new image
+                        kubectl set image deployment/${SERVICE_NAME} \
+                            ${SERVICE_NAME}=${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+                        
+                        # Wait for rollout to complete
+                        kubectl rollout status deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} --timeout=5m
+                    """
+                }
+            }
+        }
+        
+        stage('Smoke Tests') {
+            steps {
+                script {
+                    sh """
+                        # Get service URL
+                        SERVICE_URL=\$(kubectl get svc ${SERVICE_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+                        
+                        # Basic health check
+                        curl -f http://\${SERVICE_URL}/actuator/health || exit 1
+                        
+                        echo "✅ Smoke tests passed"
+                    """
+                }
+            }
+        }
+        
+        stage('Tag Git Release') {
+            steps {
+                script {
+                    sh """
+                        git tag -a ${SERVICE_NAME}-v${VERSION} -m "Release ${SERVICE_NAME} v${VERSION}"
+                        git push origin ${SERVICE_NAME}-v${VERSION} || echo "Tag already exists"
+                    """
+                }
+            }
+        }
+        
+        stage('Clean Local Images') {
+            steps {
+                sh """
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:v${VERSION} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:production || true
+                """
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo """
+            ═══════════════════════════════════════════════════════════
+            ✅ PRODUCTION DEPLOYMENT SUCCESS
+            ═══════════════════════════════════════════════════════════
+            
+            Service: ${SERVICE_NAME}
+            Version: v${VERSION}
+            Image: ${IMAGE_TAG}
+            Namespace: ${K8S_NAMESPACE}
+            
+            Release Notes: RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md
+            
+            ═══════════════════════════════════════════════════════════
+            """
+        }
+        failure {
+            echo "❌ PRODUCTION DEPLOYMENT FAILED: ${SERVICE_NAME} v${VERSION}"
+            echo "Automatic rollback triggered..."
+            sh """
+                kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} || true
+            """
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

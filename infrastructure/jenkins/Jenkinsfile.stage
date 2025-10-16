@@ -1,0 +1,178 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '020951019497'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        SERVICE_NAME = "${params.SERVICE_NAME}"
+        IMAGE_TAG = "stage-${BUILD_NUMBER}"
+        K8S_NAMESPACE = 'staging'
+    }
+    
+    parameters {
+        choice(
+            name: 'SERVICE_NAME',
+            choices: ['user-service', 'product-service', 'order-service', 'payment-service', 'shipping-service', 'favourite-service'],
+            description: 'Select microservice to deploy to STAGING'
+        )
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+        
+        stage('Build with Maven') {
+            steps {
+                sh """
+                    mvn clean package -pl ${SERVICE_NAME} -am -DskipTests
+                """
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                sh """
+                    mvn test -pl ${SERVICE_NAME}
+                """
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                sh """
+                    mvn verify -pl ${SERVICE_NAME} -Pintegration-tests
+                """
+            }
+            post {
+                always {
+                    junit '**/target/failsafe-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            steps {
+                script {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
+                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:staging \
+                                     -f ${SERVICE_NAME}/Dockerfile .
+                    """
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                script {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:staging
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    sh """
+                        # Update image in deployment
+                        kubectl set image deployment/${SERVICE_NAME} \
+                            ${SERVICE_NAME}=${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+                        
+                        # Wait for rollout
+                        kubectl rollout status deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE}
+                    """
+                }
+            }
+        }
+        
+        stage('E2E Tests') {
+            steps {
+                sh """
+                    # Run E2E tests against staging environment
+                    mvn verify -pl ${SERVICE_NAME} -Pe2e-tests \
+                        -Dtest.base.url=http://${SERVICE_NAME}.${K8S_NAMESPACE}.svc.cluster.local
+                """
+            }
+            post {
+                always {
+                    junit '**/target/e2e-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Performance Tests') {
+            steps {
+                script {
+                    sh """
+                        # Get service URL
+                        SERVICE_URL=\$(kubectl get svc ${SERVICE_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+                        
+                        # Run Locust tests
+                        cd tests/performance
+                        locust -f locustfile.py --headless \
+                            --users 50 --spawn-rate 5 --run-time 2m \
+                            --host http://\${SERVICE_URL} \
+                            --html reports/${SERVICE_NAME}-performance-${BUILD_NUMBER}.html
+                    """
+                }
+            }
+            post {
+                always {
+                    publishHTML([
+                        reportDir: 'tests/performance/reports',
+                        reportFiles: "${SERVICE_NAME}-performance-${BUILD_NUMBER}.html",
+                        reportName: 'Performance Test Report'
+                    ])
+                }
+            }
+        }
+        
+        stage('Clean Local Images') {
+            steps {
+                sh """
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:staging || true
+                """
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "✅ STAGING DEPLOYMENT SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG}"
+            echo "Service deployed to namespace: ${K8S_NAMESPACE}"
+        }
+        failure {
+            echo "❌ STAGING DEPLOYMENT FAILED: ${SERVICE_NAME}"
+            // Rollback
+            sh """
+                kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} || true
+            """
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '020951019497'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        SERVICE_NAME = "${params.SERVICE_NAME}"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+    
+    parameters {
+        choice(
+            name: 'SERVICE_NAME',
+            choices: ['user-service', 'product-service', 'order-service', 'payment-service', 'shipping-service', 'favourite-service'],
+            description: 'Select the microservice to build'
+        )
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+        
+        stage('Build with Maven') {
+            steps {
+                sh """
+                    mvn clean package -pl ${SERVICE_NAME} -am -DskipTests
+                """
+            }
+        }
+        
+        stage('Run Unit Tests') {
+            steps {
+                sh """
+                    mvn test -pl ${SERVICE_NAME}
+                """
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Docker Build') {
+            steps {
+                script {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
+                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:latest \
+                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:dev \
+                                     -f ${SERVICE_NAME}/Dockerfile .
+                    """
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                script {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:latest
+                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:dev
+                    """
+                }
+            }
+        }
+        
+        stage('Clean Local Images') {
+            steps {
+                sh """
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:latest || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:dev || true
+                """
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "✅ BUILD SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG} pushed to ECR"
+        }
+        failure {
+            echo "❌ BUILD FAILED: ${SERVICE_NAME}"
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
