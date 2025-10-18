@@ -229,11 +229,17 @@ favourite-service/"
             }
             post {
                 always {
-                    publishHTML([
-                        reportDir: 'tests/performance/reports',
-                        reportFiles: '*-performance-*.html',
-                        reportName: 'Performance Test Reports'
-                    ]) || echo "No performance reports to publish"
+                    script {
+                        try {
+                            publishHTML([
+                                reportDir: 'tests/performance/reports',
+                                reportFiles: '*-performance-*.html',
+                                reportName: 'Performance Test Reports'
+                            ])
+                        } catch (Exception e) {
+                            echo "No performance reports to publish"
+                        }
+                    }
                 }
             }
         }
