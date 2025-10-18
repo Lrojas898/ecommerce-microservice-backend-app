@@ -123,29 +123,32 @@ favourite-service/"
                     """
 
                     def changedServices = env.CHANGED_SERVICES.split(',')
-                    def dockerStages = [:]
 
                     changedServices.each { service ->
-                        dockerStages["Docker ${service}"] = {
-                            stage("Build Image ${service}") {
-                                echo "Building Docker image for ${service}..."
-                                sh """
-                                    docker build -t ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} \
-                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:staging \
-                                                 -f ${service}/Dockerfile .
-                                """
-                            }
-                            stage("Push ${service}") {
-                                echo "Pushing ${service} to ECR..."
-                                sh """
-                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG}
-                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:staging
-                                """
-                            }
+                        stage("Build Image ${service}") {
+                            echo "Building Docker image for ${service}..."
+                            sh """
+                                docker build -t ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} \
+                                             -t ${ECR_REGISTRY}/ecommerce/${service}:staging \
+                                             -f ${service}/Dockerfile .
+                            """
+                        }
+                        stage("Push ${service}") {
+                            echo "Pushing ${service} to ECR..."
+                            sh """
+                                docker push ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG}
+                                docker push ${ECR_REGISTRY}/ecommerce/${service}:staging
+                            """
+                        }
+                        stage("Clean ${service} Image") {
+                            echo "Cleaning local image for ${service}..."
+                            sh """
+                                docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} || true
+                                docker rmi ${ECR_REGISTRY}/ecommerce/${service}:staging || true
+                                docker builder prune -f
+                            """
                         }
                     }
-
-                    parallel dockerStages
                 }
             }
         }
