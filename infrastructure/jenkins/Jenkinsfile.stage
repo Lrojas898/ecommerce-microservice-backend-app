@@ -109,7 +109,7 @@ favourite-service/"
             post {
                 always {
                     junit '**/target/surefire-reports/*.xml'
-                    junit '**/target/failsafe-reports/*.xml' allowEmptyResults: true
+                    junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml'
                 }
             }
         }
@@ -203,7 +203,7 @@ favourite-service/"
             }
             post {
                 always {
-                    junit '**/target/e2e-reports/*.xml' allowEmptyResults: true
+                    junit allowEmptyResults: true, testResults: '**/target/e2e-reports/*.xml'
                 }
             }
         }
