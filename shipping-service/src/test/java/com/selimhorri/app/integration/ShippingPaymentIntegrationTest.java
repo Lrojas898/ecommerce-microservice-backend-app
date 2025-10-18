@@ -18,6 +18,7 @@ import com.selimhorri.app.repository.OrderItemRepository;
 /**
  * Integration test for Shipping service
  * Tests shipping item management after payment processing
+ * Uses H2 in-memory database for testing
  *
  * This test validates that shipping-service can:
  * - Create shipping items from order items
@@ -26,21 +27,16 @@ import com.selimhorri.app.repository.OrderItemRepository;
  *
  * Architecture flow: order-service → payment-service → shipping-service
  */
-@Testcontainers
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 class ShippingPaymentIntegrationTest {
 
-    @Container
-    static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test");
-
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", mysql::getJdbcUrl);
-        registry.add("spring.datasource.username", mysql::getUsername);
-        registry.add("spring.datasource.password", mysql::getPassword);
+        registry.add("spring.datasource.url", () -> "jdbc:h2:mem:testdb");
+        registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
+        registry.add("spring.datasource.username", () -> "sa");
+        registry.add("spring.datasource.password", () -> "");
+        registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.H2Dialect");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     }
 
