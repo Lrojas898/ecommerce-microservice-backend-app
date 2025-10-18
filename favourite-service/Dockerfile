@@ -2,15 +2,13 @@
 FROM maven:3.8.7-openjdk-18-slim AS build
 WORKDIR /app
 
-# Copy parent pom and all required modules
+# Copy parent pom and all modules
 COPY pom.xml ./
-COPY mvnw ./
-COPY .mvn ./.mvn
-COPY proxy-client ./proxy-client
-COPY favourite-service ./favourite-service
 COPY service-discovery ./service-discovery
 COPY cloud-config ./cloud-config
 COPY api-gateway ./api-gateway
+COPY proxy-client ./proxy-client
+COPY favourite-service ./favourite-service
 COPY user-service ./user-service
 COPY product-service ./product-service
 COPY order-service ./order-service
@@ -18,7 +16,7 @@ COPY shipping-service ./shipping-service
 COPY payment-service ./payment-service
 
 # Build the application
-RUN chmod +x mvnw && ./mvnw clean install -pl favourite-service -am -DskipTests
+RUN mvn clean package -pl favourite-service -am -DskipTests
 
 # Runtime stage
 FROM openjdk:11-jre-slim
