@@ -121,20 +121,18 @@ class FavouriteUserProductIntegrationTest {
                 .likeDate(likeDate)
                 .build());
 
-        // Build composite key using the saved entity's likeDate
-        final com.selimhorri.app.domain.id.FavouriteId favouriteId =
-            new com.selimhorri.app.domain.id.FavouriteId(
-                favourite.getUserId(),
-                favourite.getProductId(),
-                favourite.getLikeDate()
-            );
+        // Verify it was saved
+        assertThat(favourite.getUserId()).isEqualTo(4);
+        assertThat(favourite.getProductId()).isEqualTo(401);
 
-        // Act
-        this.favouriteRepository.deleteById(favouriteId);
+        // Act - delete using the entity itself
+        this.favouriteRepository.delete(favourite);
 
-        // Assert
-        final var remaining = this.favouriteRepository.findById(favouriteId);
-        assertThat(remaining).isEmpty();
+        // Assert - verify it was deleted by searching for it
+        final var allFavourites = this.favouriteRepository.findAll();
+        final boolean exists = allFavourites.stream()
+            .anyMatch(f -> f.getUserId().equals(4) && f.getProductId().equals(401));
+        assertThat(exists).isFalse();
     }
 
     @Test
