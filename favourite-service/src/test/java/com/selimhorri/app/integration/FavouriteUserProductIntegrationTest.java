@@ -121,9 +121,13 @@ class FavouriteUserProductIntegrationTest {
                 .likeDate(likeDate)
                 .build());
 
-        // Build composite key for deletion
+        // Build composite key using the saved entity's likeDate
         final com.selimhorri.app.domain.id.FavouriteId favouriteId =
-            new com.selimhorri.app.domain.id.FavouriteId(4, 401, likeDate);
+            new com.selimhorri.app.domain.id.FavouriteId(
+                favourite.getUserId(),
+                favourite.getProductId(),
+                favourite.getLikeDate()
+            );
 
         // Act
         this.favouriteRepository.deleteById(favouriteId);
