@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        maven 'maven-3.8'
-    }
-
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
@@ -44,21 +40,22 @@ pipeline {
         stage('Build with Maven') {
             steps {
                 sh """
-                    mvn clean package -pl ${SERVICE_NAME} -am
+                    chmod +x ./mvnw
+                    ./mvnw clean package -pl ${SERVICE_NAME} -am
                 """
             }
         }
-        
+
         stage('Run All Tests') {
             parallel {
                 stage('Unit Tests') {
                     steps {
-                        sh "mvn test -pl ${SERVICE_NAME}"
+                        sh "./mvnw test -pl ${SERVICE_NAME}"
                     }
                 }
                 stage('Integration Tests') {
                     steps {
-                        sh "mvn verify -pl ${SERVICE_NAME} -Pintegration-tests"
+                        sh "./mvnw verify -pl ${SERVICE_NAME} -Pintegration-tests"
                     }
                 }
             }
