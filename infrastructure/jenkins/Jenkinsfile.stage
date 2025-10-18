@@ -78,10 +78,17 @@ favourite-service/"
             steps {
                 script {
                     def changedServices = env.CHANGED_SERVICES.split(',')
-                    def buildStages = [:]
+                    def buildOrder = [
+                        'user-service',
+                        'product-service',
+                        'order-service',
+                        'favourite-service',
+                        'payment-service',
+                        'shipping-service'
+                    ]
 
-                    changedServices.each { service ->
-                        buildStages["Build ${service}"] = {
+                    buildOrder.each { service ->
+                        if (changedServices.contains(service)) {
                             stage("Build ${service}") {
                                 echo "Building ${service}..."
                                 sh """
@@ -102,8 +109,6 @@ favourite-service/"
                             }
                         }
                     }
-
-                    parallel buildStages
                 }
             }
             post {

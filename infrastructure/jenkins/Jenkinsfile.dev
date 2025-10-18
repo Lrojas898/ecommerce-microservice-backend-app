@@ -2,15 +2,7 @@ pipeline {
     agent any
 
     triggers {
-        GenericTrigger(
-            genericVariables: [
-                [key: 'ref', value: '$.ref']
-            ],
-            causeString: 'Triggered by GitHub push to $ref',
-            token: 'ecommerce-webhook-token',
-            regexpFilterText: '$ref',
-            regexpFilterExpression: 'refs/heads/master'
-        )
+        githubPush()
     }
 
     environment {
@@ -90,10 +82,17 @@ favourite-service/"
             steps {
                 script {
                     def changedServices = env.CHANGED_SERVICES.split(',')
-                    def buildStages = [:]
+                    def buildOrder = [
+                        'user-service',
+                        'product-service',
+                        'order-service',
+                        'favourite-service',
+                        'payment-service',
+                        'shipping-service'
+                    ]
 
-                    changedServices.each { service ->
-                        buildStages["Build ${service}"] = {
+                    buildOrder.each { service ->
+                        if (changedServices.contains(service)) {
                             stage("Build ${service}") {
                                 echo "Building ${service}..."
                                 sh """
@@ -108,8 +107,6 @@ favourite-service/"
                             }
                         }
                     }
-
-                    parallel buildStages
                 }
             }
             post {
@@ -122,17 +119,23 @@ favourite-service/"
         stage('Docker Build and Push') {
             steps {
                 script {
-                    // Login to ECR once
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
                         docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     """
 
                     def changedServices = env.CHANGED_SERVICES.split(',')
-                    def dockerStages = [:]
+                    def buildOrder = [
+                        'user-service',
+                        'product-service',
+                        'order-service',
+                        'favourite-service',
+                        'payment-service',
+                        'shipping-service'
+                    ]
 
-                    changedServices.each { service ->
-                        dockerStages["Docker ${service}"] = {
+                    buildOrder.each { service ->
+                        if (changedServices.contains(service)) {
                             stage("Build Image ${service}") {
                                 echo "Building Docker image for ${service}..."
                                 sh """
@@ -150,17 +153,17 @@ favourite-service/"
                                     docker push ${ECR_REGISTRY}/ecommerce/${service}:dev
                                 """
                             }
-                            stage("Cleanup ${service}") {
+                            stage("Clean ${service} Image") {
+                                echo "Cleaning local image for ${service}..."
                                 sh """
                                     docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} || true
                                     docker rmi ${ECR_REGISTRY}/ecommerce/${service}:latest || true
                                     docker rmi ${ECR_REGISTRY}/ecommerce/${service}:dev || true
+                                    docker builder prune -f
                                 """
                             }
                         }
                     }
-
-                    parallel dockerStages
                 }
             }
         }
