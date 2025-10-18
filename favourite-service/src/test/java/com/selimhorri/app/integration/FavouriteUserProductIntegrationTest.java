@@ -125,14 +125,16 @@ class FavouriteUserProductIntegrationTest {
         assertThat(favourite.getUserId()).isEqualTo(4);
         assertThat(favourite.getProductId()).isEqualTo(401);
 
+        final long countBefore = this.favouriteRepository.count();
+        assertThat(countBefore).isEqualTo(1);
+
         // Act - delete using the entity itself
         this.favouriteRepository.delete(favourite);
+        this.favouriteRepository.flush();
 
-        // Assert - verify it was deleted by searching for it
-        final var allFavourites = this.favouriteRepository.findAll();
-        final boolean exists = allFavourites.stream()
-            .anyMatch(f -> f.getUserId().equals(4) && f.getProductId().equals(401));
-        assertThat(exists).isFalse();
+        // Assert - verify it was deleted
+        final long countAfter = this.favouriteRepository.count();
+        assertThat(countAfter).isEqualTo(0);
     }
 
     @Test
