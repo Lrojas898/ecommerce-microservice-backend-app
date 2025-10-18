@@ -81,42 +81,21 @@ favourite-service/"
             }
         }
         
-        stage('Build and Test Services') {
+        stage('Build user-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('user-service') }
+            }
             steps {
-                script {
-                    def changedServices = env.CHANGED_SERVICES.split(',')
-                    def buildOrder = [
-                        'user-service',
-                        'product-service',
-                        'order-service',
-                        'favourite-service',
-                        'payment-service',
-                        'shipping-service'
-                    ]
+                sh "mvn clean install -pl user-service -am"
+            }
+        }
 
-                    buildOrder.each { service ->
-                        if (changedServices.contains(service)) {
-                            stage("Build ${service}") {
-                                echo "Building ${service}..."
-                                sh """
-                                    mvn clean install -pl ${service} -am
-                                """
-                            }
-                            stage("Unit Tests ${service}") {
-                                echo "Running unit tests for ${service}..."
-                                sh """
-                                    mvn test -pl ${service}
-                                """
-                            }
-                            stage("Integration Tests ${service}") {
-                                echo "Running integration tests for ${service}..."
-                                sh """
-                                    mvn verify -pl ${service} -Pintegration-tests || echo "No integration tests profile"
-                                """
-                            }
-                        }
-                    }
-                }
+        stage('Unit Tests user-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('user-service') }
+            }
+            steps {
+                sh "mvn test -pl user-service"
             }
             post {
                 always {
@@ -125,56 +104,299 @@ favourite-service/"
             }
         }
 
-        stage('Docker Build and Push') {
+        stage('Integration Tests user-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('user-service') }
+            }
+            steps {
+                sh "mvn verify -pl user-service -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
+        stage('Build product-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('product-service') }
+            }
+            steps {
+                sh "mvn clean install -pl product-service -am"
+            }
+        }
+
+        stage('Unit Tests product-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('product-service') }
+            }
+            steps {
+                sh "mvn test -pl product-service"
+            }
+        }
+
+        stage('Integration Tests product-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('product-service') }
+            }
+            steps {
+                sh "mvn verify -pl product-service -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
+        stage('Build order-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('order-service') }
+            }
+            steps {
+                sh "mvn clean install -pl order-service -am"
+            }
+        }
+
+        stage('Unit Tests order-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('order-service') }
+            }
+            steps {
+                sh "mvn test -pl order-service"
+            }
+        }
+
+        stage('Integration Tests order-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('order-service') }
+            }
+            steps {
+                sh "mvn verify -pl order-service -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
+        stage('Build favourite-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('favourite-service') }
+            }
+            steps {
+                sh "mvn clean install -pl favourite-service -am"
+            }
+        }
+
+        stage('Unit Tests favourite-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('favourite-service') }
+            }
+            steps {
+                sh "mvn test -pl favourite-service"
+            }
+        }
+
+        stage('Integration Tests favourite-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('favourite-service') }
+            }
+            steps {
+                sh "mvn verify -pl favourite-service -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
+        stage('Build payment-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('payment-service') }
+            }
+            steps {
+                sh "mvn clean install -pl payment-service -am"
+            }
+        }
+
+        stage('Unit Tests payment-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('payment-service') }
+            }
+            steps {
+                sh "mvn test -pl payment-service"
+            }
+        }
+
+        stage('Integration Tests payment-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('payment-service') }
+            }
+            steps {
+                sh "mvn verify -pl payment-service -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
+        stage('Build shipping-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('shipping-service') }
+            }
+            steps {
+                sh "mvn clean install -pl shipping-service -am"
+            }
+        }
+
+        stage('Unit Tests shipping-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('shipping-service') }
+            }
+            steps {
+                sh "mvn test -pl shipping-service"
+            }
+        }
+
+        stage('Integration Tests shipping-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('shipping-service') }
+            }
+            steps {
+                sh "mvn verify -pl shipping-service -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
+        stage('ECR Login') {
+            steps {
+                sh """
+                    aws ecr get-login-password --region ${AWS_REGION} | \
+                    docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                """
+            }
+        }
+
+        stage('Docker Build user-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('user-service') }
+            }
             steps {
                 script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
                     sh """
-                        aws ecr get-login-password --region ${AWS_REGION} | \
-                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        docker build -t ${ECR_REGISTRY}/ecommerce/user-service:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/user-service:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/user-service:production \
+                                     -f user-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/user-service:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/user-service:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/user-service:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/user-service:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/user-service:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/user-service:production || true
+                        docker builder prune -f
                     """
+                }
+            }
+        }
 
-                    def changedServices = env.CHANGED_SERVICES.split(',')
-                    def buildOrder = [
-                        'user-service',
-                        'product-service',
-                        'order-service',
-                        'favourite-service',
-                        'payment-service',
-                        'shipping-service'
-                    ]
+        stage('Docker Build product-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('product-service') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/product-service:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/product-service:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/product-service:production \
+                                     -f product-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/product-service:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/product-service:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/product-service:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/product-service:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/product-service:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/product-service:production || true
+                        docker builder prune -f
+                    """
+                }
+            }
+        }
 
-                    buildOrder.each { service ->
-                        if (changedServices.contains(service)) {
-                            def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+        stage('Docker Build order-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('order-service') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/order-service:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/order-service:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/order-service:production \
+                                     -f order-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/order-service:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/order-service:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/order-service:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/order-service:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/order-service:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/order-service:production || true
+                        docker builder prune -f
+                    """
+                }
+            }
+        }
 
-                            stage("Build Image ${service}") {
-                                echo "Building Docker image for ${service}..."
-                                sh """
-                                    docker build -t ${ECR_REGISTRY}/ecommerce/${service}:${imageTag} \
-                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:v${env.VERSION} \
-                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:production \
-                                                 -f ${service}/Dockerfile .
-                                """
-                            }
-                            stage("Push ${service}") {
-                                echo "Pushing ${service} to ECR..."
-                                sh """
-                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:${imageTag}
-                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:v${env.VERSION}
-                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:production
-                                """
-                            }
-                            stage("Clean ${service} Image") {
-                                echo "Cleaning local image for ${service}..."
-                                sh """
-                                    docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${imageTag} || true
-                                    docker rmi ${ECR_REGISTRY}/ecommerce/${service}:v${env.VERSION} || true
-                                    docker rmi ${ECR_REGISTRY}/ecommerce/${service}:production || true
-                                    docker builder prune -f
-                                """
-                            }
-                        }
-                    }
+        stage('Docker Build favourite-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('favourite-service') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/favourite-service:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/favourite-service:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/favourite-service:production \
+                                     -f favourite-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/favourite-service:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/favourite-service:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/favourite-service:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:production || true
+                        docker builder prune -f
+                    """
+                }
+            }
+        }
+
+        stage('Docker Build payment-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('payment-service') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/payment-service:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/payment-service:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/payment-service:production \
+                                     -f payment-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/payment-service:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/payment-service:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/payment-service:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:production || true
+                        docker builder prune -f
+                    """
+                }
+            }
+        }
+
+        stage('Docker Build shipping-service') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('shipping-service') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/shipping-service:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/shipping-service:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/shipping-service:production \
+                                     -f shipping-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/shipping-service:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/shipping-service:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/shipping-service:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:production || true
+                        docker builder prune -f
+                    """
                 }
             }
         }
