@@ -1,22 +1,18 @@
 pipeline {
     agent any
 
+    triggers {
+        githubPush()
+    }
+
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        SERVICE_NAME = "${params.SERVICE_NAME}"
         IMAGE_TAG = "${BUILD_NUMBER}"
+        SERVICES = 'user-service,product-service,order-service,payment-service,shipping-service,favourite-service'
     }
-    
-    parameters {
-        choice(
-            name: 'SERVICE_NAME',
-            choices: ['user-service', 'product-service', 'order-service', 'payment-service', 'shipping-service', 'favourite-service'],
-            description: 'Select the microservice to build'
-        )
-    }
-    
+
     stages {
         stage('Checkout') {
             steps {
@@ -29,21 +25,84 @@ pipeline {
                 }
             }
         }
-        
-        stage('Build with Maven') {
+
+        stage('Detect Changed Services') {
             steps {
-                sh """
-                    chmod +x ./mvnw
-                    ./mvnw clean install -pl ${SERVICE_NAME} -am -DskipTests
-                """
+                script {
+                    // Get the list of changed files since last successful build
+                    def changedFiles = sh(
+                        script: '''
+                            if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                                git diff --name-only HEAD~1 HEAD
+                            else
+                                # First commit - build all services
+                                echo "user-service/
+product-service/
+order-service/
+payment-service/
+shipping-service/
+favourite-service/"
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changedFiles}"
+
+                    // Detect which services were affected
+                    def services = env.SERVICES.split(',')
+                    def changedServices = []
+
+                    services.each { service ->
+                        if (changedFiles.contains("${service}/") ||
+                            changedFiles.contains("pom.xml") ||
+                            changedFiles.contains("infrastructure/")) {
+                            changedServices.add(service)
+                        }
+                    }
+
+                    // If no services detected but files changed, build all
+                    if (changedServices.isEmpty() && !changedFiles.isEmpty()) {
+                        changedServices = services as List
+                    }
+
+                    // If still empty, skip build
+                    if (changedServices.isEmpty()) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error('No services changed - skipping build')
+                    }
+
+                    env.CHANGED_SERVICES = changedServices.join(',')
+                    echo "Services to build: ${env.CHANGED_SERVICES}"
+                }
             }
         }
         
-        stage('Run Unit Tests') {
+        stage('Build and Test Services') {
             steps {
-                sh """
-                    ./mvnw test -pl ${SERVICE_NAME}
-                """
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def buildStages = [:]
+
+                    changedServices.each { service ->
+                        buildStages["Build ${service}"] = {
+                            stage("Build ${service}") {
+                                echo "Building ${service}..."
+                                sh """
+                                    mvn clean install -pl ${service} -am -DskipTests
+                                """
+                            }
+                            stage("Test ${service}") {
+                                echo "Running unit tests for ${service}..."
+                                sh """
+                                    mvn test -pl ${service}
+                                """
+                            }
+                        }
+                    }
+
+                    parallel buildStages
+                }
             }
             post {
                 always {
@@ -51,55 +110,67 @@ pipeline {
                 }
             }
         }
-        
-        stage('Docker Build') {
+
+        stage('Docker Build and Push') {
             steps {
                 script {
-                    sh """
-                        docker build -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
-                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:latest \
-                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:dev \
-                                     -f ${SERVICE_NAME}/Dockerfile .
-                    """
-                }
-            }
-        }
-        
-        stage('Push to ECR') {
-            steps {
-                script {
+                    // Login to ECR once
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
                         docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                        
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:latest
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:dev
                     """
+
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def dockerStages = [:]
+
+                    changedServices.each { service ->
+                        dockerStages["Docker ${service}"] = {
+                            stage("Build Image ${service}") {
+                                echo "Building Docker image for ${service}..."
+                                sh """
+                                    docker build -t ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} \
+                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:latest \
+                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:dev \
+                                                 -f ${service}/Dockerfile .
+                                """
+                            }
+                            stage("Push ${service}") {
+                                echo "Pushing ${service} to ECR..."
+                                sh """
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG}
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:latest
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:dev
+                                """
+                            }
+                            stage("Cleanup ${service}") {
+                                sh """
+                                    docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} || true
+                                    docker rmi ${ECR_REGISTRY}/ecommerce/${service}:latest || true
+                                    docker rmi ${ECR_REGISTRY}/ecommerce/${service}:dev || true
+                                """
+                            }
+                        }
+                    }
+
+                    parallel dockerStages
                 }
-            }
-        }
-        
-        stage('Clean Local Images') {
-            steps {
-                sh """
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:latest || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:dev || true
-                """
             }
         }
     }
     
     post {
         success {
-            echo "BUILD SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG} pushed to ECR"
+            script {
+                echo "BUILD SUCCESS: Built and pushed services: ${env.CHANGED_SERVICES}"
+                echo "Image tag: ${IMAGE_TAG}"
+            }
         }
         failure {
-            echo "BUILD FAILED: ${SERVICE_NAME}"
+            script {
+                echo "BUILD FAILED for one or more services in: ${env.CHANGED_SERVICES}"
+            }
         }
         always {
-            // Clean workspace - requires Workspace Cleanup plugin
             deleteDir()
         }
     }

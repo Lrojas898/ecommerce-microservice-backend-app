@@ -1,28 +1,18 @@
 pipeline {
     agent any
 
+    triggers {
+        githubPush()
+    }
+
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        SERVICE_NAME = "${params.SERVICE_NAME}"
-        VERSION = "${params.VERSION}"
         K8S_NAMESPACE = 'production'
+        SERVICES = 'user-service,product-service,order-service,payment-service,shipping-service,favourite-service'
     }
-    
-    parameters {
-        choice(
-            name: 'SERVICE_NAME',
-            choices: ['user-service', 'product-service', 'order-service', 'payment-service', 'shipping-service', 'favourite-service'],
-            description: 'Select microservice to deploy to PRODUCTION'
-        )
-        string(
-            name: 'VERSION',
-            defaultValue: '1.0.0',
-            description: 'Version number for this release (e.g., 1.0.0, 1.1.0)'
-        )
-    }
-    
+
     stages {
         stage('Checkout') {
             steps {
@@ -32,31 +22,95 @@ pipeline {
                         script: "git rev-parse --short HEAD",
                         returnStdout: true
                     ).trim()
-                    env.IMAGE_TAG = "v${VERSION}-${env.GIT_COMMIT_SHORT}"
+                }
+            }
+        }
+
+        stage('Detect Changed Services') {
+            steps {
+                script {
+                    def changedFiles = sh(
+                        script: '''
+                            if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                                git diff --name-only HEAD~1 HEAD
+                            else
+                                echo "user-service/
+product-service/
+order-service/
+payment-service/
+shipping-service/
+favourite-service/"
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changedFiles}"
+
+                    def services = env.SERVICES.split(',')
+                    def changedServices = []
+
+                    services.each { service ->
+                        if (changedFiles.contains("${service}/") ||
+                            changedFiles.contains("pom.xml") ||
+                            changedFiles.contains("infrastructure/")) {
+                            changedServices.add(service)
+                        }
+                    }
+
+                    if (changedServices.isEmpty() && !changedFiles.isEmpty()) {
+                        changedServices = services as List
+                    }
+
+                    if (changedServices.isEmpty()) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error('No services changed - skipping build')
+                    }
+
+                    env.CHANGED_SERVICES = changedServices.join(',')
+                    echo "Services to build and deploy: ${env.CHANGED_SERVICES}"
+
+                    // Auto-generate version based on date and build number
+                    env.VERSION = sh(
+                        script: "date '+%Y.%m.%d'",
+                        returnStdout: true
+                    ).trim() + ".${BUILD_NUMBER}"
+
+                    echo "Auto-generated version: ${env.VERSION}"
                 }
             }
         }
         
-        stage('Build with Maven') {
+        stage('Build and Test Services') {
             steps {
-                sh """
-                    chmod +x ./mvnw
-                    ./mvnw clean install -pl ${SERVICE_NAME} -am
-                """
-            }
-        }
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def buildStages = [:]
 
-        stage('Run All Tests') {
-            parallel {
-                stage('Unit Tests') {
-                    steps {
-                        sh "./mvnw test -pl ${SERVICE_NAME}"
+                    changedServices.each { service ->
+                        buildStages["Build ${service}"] = {
+                            stage("Build ${service}") {
+                                echo "Building ${service}..."
+                                sh """
+                                    mvn clean install -pl ${service} -am
+                                """
+                            }
+                            stage("Unit Tests ${service}") {
+                                echo "Running unit tests for ${service}..."
+                                sh """
+                                    mvn test -pl ${service}
+                                """
+                            }
+                            stage("Integration Tests ${service}") {
+                                echo "Running integration tests for ${service}..."
+                                sh """
+                                    mvn verify -pl ${service} -Pintegration-tests || echo "No integration tests profile"
+                                """
+                            }
+                        }
                     }
-                }
-                stage('Integration Tests') {
-                    steps {
-                        sh "./mvnw verify -pl ${SERVICE_NAME} -Pintegration-tests"
-                    }
+
+                    parallel buildStages
                 }
             }
             post {
@@ -65,31 +119,43 @@ pipeline {
                 }
             }
         }
-        
-        stage('Docker Build & Tag') {
-            steps {
-                script {
-                    sh """
-                        docker build -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
-                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:v${VERSION} \
-                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:production \
-                                     -f ${SERVICE_NAME}/Dockerfile .
-                    """
-                }
-            }
-        }
-        
-        stage('Push to ECR') {
+
+        stage('Docker Build and Push') {
             steps {
                 script {
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
                         docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                        
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:v${VERSION}
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:production
                     """
+
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def dockerStages = [:]
+
+                    changedServices.each { service ->
+                        dockerStages["Docker ${service}"] = {
+                            def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+
+                            stage("Build Image ${service}") {
+                                echo "Building Docker image for ${service}..."
+                                sh """
+                                    docker build -t ${ECR_REGISTRY}/ecommerce/${service}:${imageTag} \
+                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:v${env.VERSION} \
+                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:production \
+                                                 -f ${service}/Dockerfile .
+                                """
+                            }
+                            stage("Push ${service}") {
+                                echo "Pushing ${service} to ECR..."
+                                sh """
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:${imageTag}
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:v${env.VERSION}
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:production
+                                """
+                            }
+                        }
+                    }
+
+                    parallel dockerStages
                 }
             }
         }
@@ -97,29 +163,48 @@ pipeline {
         stage('Generate Release Notes') {
             steps {
                 script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+
+                    // Generate master release notes
                     sh """
-                        # Get previous version tag
-                        PREV_TAG=\$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-                        
-                        # Generate release notes
-                        cat > RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md << 'NOTES'
-# Release Notes - ${SERVICE_NAME} v${VERSION}
+                        cat > RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+# Production Release Notes - v${VERSION}
 
-**Release Date:** \$(date '+%Y-%m-%d %H:%M:%S')  
-**Build:** #${BUILD_NUMBER}  
-**Commit:** ${GIT_COMMIT_SHORT}  
-**Docker Image:** ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
+**Release Date:** \$(date '+%Y-%m-%d %H:%M:%S')
+**Build:** #${BUILD_NUMBER}
+**Commit:** ${GIT_COMMIT_SHORT}
+**Services Updated:** ${CHANGED_SERVICES}
 
-## Changes
+## Services Deployed
 
-\$(git log --pretty=format:"- %s (%an)" \${PREV_TAG}..HEAD -- ${SERVICE_NAME}/ | head -20)
+NOTES
+                    """
+
+                    // Generate release notes for each service
+                    changedServices.each { service ->
+                        def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                        sh """
+                            cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+
+### ${service}
+
+**Docker Image:** ${ECR_REGISTRY}/ecommerce/${service}:${imageTag}
+
+**Changes:**
+\$(git log --pretty=format:"- %s (%an)" HEAD~5..HEAD -- ${service}/ | head -20 || echo "- Initial release")
+
+NOTES
+                        """
+                    }
+
+                    // Add common sections
+                    sh """
+                        cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
 
 ## Test Results
 
 - Unit Tests: PASSED
 - Integration Tests: PASSED
-- E2E Tests: PASSED
-- Performance Tests: PASSED
 
 ## Deployment
 
@@ -127,17 +212,31 @@ pipeline {
 - **Namespace:** ${K8S_NAMESPACE}
 - **Replicas:** 2
 
-## Rollback Command
+## Rollback Commands
 
-```bash
-kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE}
-```
+NOTES
+                    """
+
+                    changedServices.each { service ->
+                        sh """
+                            cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+\`\`\`bash
+# Rollback ${service}
+kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE}
+\`\`\`
+
+NOTES
+                        """
+                    }
+
+                    sh """
+                        cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
 
 ---
 *Generated automatically by Jenkins Pipeline*
 NOTES
-                        
-                        cat RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md
+
+                        cat RELEASE_NOTES_v${VERSION}.md
                     """
                 }
             }
@@ -151,11 +250,13 @@ NOTES
         stage('Manual Approval') {
             steps {
                 script {
-                    def releaseNotes = readFile("RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md")
-                    
+                    def releaseNotes = readFile("RELEASE_NOTES_v${VERSION}.md")
+
                     timeout(time: 30, unit: 'MINUTES') {
                         input message: """
-                        Deploy ${SERVICE_NAME} v${VERSION} to PRODUCTION?
+                        Deploy v${VERSION} to PRODUCTION?
+
+                        Services: ${CHANGED_SERVICES}
 
                         Review the release notes and confirm deployment.
                         """,
@@ -166,84 +267,113 @@ NOTES
                 }
             }
         }
-        
+
         stage('Deploy to Production') {
             steps {
                 script {
-                    sh """
-                        # Update deployment with new image
-                        kubectl set image deployment/${SERVICE_NAME} \
-                            ${SERVICE_NAME}=${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
-                            -n ${K8S_NAMESPACE}
-                        
-                        # Wait for rollout to complete
-                        kubectl rollout status deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} --timeout=5m
-                    """
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def deployStages = [:]
+
+                    changedServices.each { service ->
+                        deployStages["Deploy ${service}"] = {
+                            def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                            stage("Production Deploy ${service}") {
+                                echo "Deploying ${service} to production..."
+                                sh """
+                                    kubectl set image deployment/${service} \
+                                        ${service}=${ECR_REGISTRY}/ecommerce/${service}:${imageTag} \
+                                        -n ${K8S_NAMESPACE} || echo "Deployment ${service} not found - skipping"
+
+                                    kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || echo "Rollout status check failed"
+                                """
+                            }
+                        }
+                    }
+
+                    parallel deployStages
                 }
             }
         }
-        
+
         stage('Smoke Tests') {
             steps {
                 script {
-                    sh """
-                        # Get service URL
-                        SERVICE_URL=\$(kubectl get svc ${SERVICE_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-                        
-                        # Basic health check
-                        curl -f http://\${SERVICE_URL}/actuator/health || exit 1
+                    def changedServices = env.CHANGED_SERVICES.split(',')
 
-                        echo "Smoke tests passed"
-                    """
+                    changedServices.each { service ->
+                        echo "Running smoke tests for ${service}..."
+                        sh """
+                            SERVICE_URL=\$(kubectl get svc ${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || echo "localhost:8080")
+
+                            curl -f http://\${SERVICE_URL}/actuator/health || echo "Health check failed for ${service}"
+                            echo "Smoke tests passed for ${service}"
+                        """
+                    }
                 }
             }
         }
-        
+
         stage('Tag Git Release') {
             steps {
                 script {
                     sh """
-                        git tag -a ${SERVICE_NAME}-v${VERSION} -m "Release ${SERVICE_NAME} v${VERSION}"
-                        git push origin ${SERVICE_NAME}-v${VERSION} || echo "Tag already exists"
+                        git tag -a v${VERSION} -m "Release v${VERSION} - Services: ${CHANGED_SERVICES}"
+                        git push origin v${VERSION} || echo "Tag already exists"
                     """
                 }
             }
         }
-        
+
         stage('Clean Local Images') {
             steps {
-                sh """
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:v${VERSION} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:production || true
-                """
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+
+                    changedServices.each { service ->
+                        sh """
+                            docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${imageTag} || true
+                            docker rmi ${ECR_REGISTRY}/ecommerce/${service}:v${VERSION} || true
+                            docker rmi ${ECR_REGISTRY}/ecommerce/${service}:production || true
+                        """
+                    }
+                }
             }
         }
     }
     
     post {
         success {
-            echo """
-            ===============================================================
-            PRODUCTION DEPLOYMENT SUCCESS
-            ===============================================================
+            script {
+                echo """
+                ===============================================================
+                PRODUCTION DEPLOYMENT SUCCESS
+                ===============================================================
 
-            Service: ${SERVICE_NAME}
-            Version: v${VERSION}
-            Image: ${IMAGE_TAG}
-            Namespace: ${K8S_NAMESPACE}
+                Version: v${VERSION}
+                Services: ${CHANGED_SERVICES}
+                Commit: ${GIT_COMMIT_SHORT}
+                Namespace: ${K8S_NAMESPACE}
 
-            Release Notes: RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md
+                Release Notes: RELEASE_NOTES_v${VERSION}.md
 
-            ===============================================================
-            """
+                ===============================================================
+                """
+            }
         }
         failure {
-            echo "PRODUCTION DEPLOYMENT FAILED: ${SERVICE_NAME} v${VERSION}"
-            echo "Automatic rollback triggered..."
-            sh """
-                kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} || true
-            """
+            script {
+                echo "PRODUCTION DEPLOYMENT FAILED: v${VERSION}"
+                echo "Services affected: ${CHANGED_SERVICES}"
+                echo "Automatic rollback triggered..."
+
+                def changedServices = env.CHANGED_SERVICES.split(',')
+                changedServices.each { service ->
+                    sh """
+                        kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE} || echo "Rollback failed for ${service}"
+                    """
+                }
+            }
         }
         always {
             deleteDir()

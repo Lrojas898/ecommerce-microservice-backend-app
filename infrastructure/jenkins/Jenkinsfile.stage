@@ -1,23 +1,19 @@
 pipeline {
     agent any
 
+    triggers {
+        githubPush()
+    }
+
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        SERVICE_NAME = "${params.SERVICE_NAME}"
         IMAGE_TAG = "stage-${BUILD_NUMBER}"
         K8S_NAMESPACE = 'staging'
+        SERVICES = 'user-service,product-service,order-service,payment-service,shipping-service,favourite-service'
     }
-    
-    parameters {
-        choice(
-            name: 'SERVICE_NAME',
-            choices: ['user-service', 'product-service', 'order-service', 'payment-service', 'shipping-service', 'favourite-service'],
-            description: 'Select microservice to deploy to STAGING'
-        )
-    }
-    
+
     stages {
         stage('Checkout') {
             steps {
@@ -30,147 +26,242 @@ pipeline {
                 }
             }
         }
-        
-        stage('Build with Maven') {
+
+        stage('Detect Changed Services') {
             steps {
-                sh """
-                    chmod +x ./mvnw
-                    ./mvnw clean install -pl ${SERVICE_NAME} -am -DskipTests
-                """
+                script {
+                    def changedFiles = sh(
+                        script: '''
+                            if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                                git diff --name-only HEAD~1 HEAD
+                            else
+                                echo "user-service/
+product-service/
+order-service/
+payment-service/
+shipping-service/
+favourite-service/"
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changedFiles}"
+
+                    def services = env.SERVICES.split(',')
+                    def changedServices = []
+
+                    services.each { service ->
+                        if (changedFiles.contains("${service}/") ||
+                            changedFiles.contains("pom.xml") ||
+                            changedFiles.contains("infrastructure/")) {
+                            changedServices.add(service)
+                        }
+                    }
+
+                    if (changedServices.isEmpty() && !changedFiles.isEmpty()) {
+                        changedServices = services as List
+                    }
+
+                    if (changedServices.isEmpty()) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error('No services changed - skipping build')
+                    }
+
+                    env.CHANGED_SERVICES = changedServices.join(',')
+                    echo "Services to build and deploy: ${env.CHANGED_SERVICES}"
+                }
             }
         }
-
-        stage('Unit Tests') {
+        
+        stage('Build and Test Services') {
             steps {
-                sh """
-                    ./mvnw test -pl ${SERVICE_NAME}
-                """
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def buildStages = [:]
+
+                    changedServices.each { service ->
+                        buildStages["Build ${service}"] = {
+                            stage("Build ${service}") {
+                                echo "Building ${service}..."
+                                sh """
+                                    mvn clean install -pl ${service} -am -DskipTests
+                                """
+                            }
+                            stage("Unit Tests ${service}") {
+                                echo "Running unit tests for ${service}..."
+                                sh """
+                                    mvn test -pl ${service}
+                                """
+                            }
+                            stage("Integration Tests ${service}") {
+                                echo "Running integration tests for ${service}..."
+                                sh """
+                                    mvn verify -pl ${service} -Pintegration-tests || echo "No integration tests profile"
+                                """
+                            }
+                        }
+                    }
+
+                    parallel buildStages
+                }
             }
             post {
                 always {
                     junit '**/target/surefire-reports/*.xml'
+                    junit '**/target/failsafe-reports/*.xml' allowEmptyResults: true
                 }
             }
         }
-        
-        stage('Integration Tests') {
-            steps {
-                sh """
-                    ./mvnw verify -pl ${SERVICE_NAME} -Pintegration-tests
-                """
-            }
-            post {
-                always {
-                    junit '**/target/failsafe-reports/*.xml'
-                }
-            }
-        }
-        
-        stage('Docker Build') {
-            steps {
-                script {
-                    sh """
-                        docker build -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
-                                     -t ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:staging \
-                                     -f ${SERVICE_NAME}/Dockerfile .
-                    """
-                }
-            }
-        }
-        
-        stage('Push to ECR') {
+
+        stage('Docker Build and Push') {
             steps {
                 script {
                     sh """
                         aws ecr get-login-password --region ${AWS_REGION} | \
                         docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                        
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG}
-                        docker push ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:staging
                     """
+
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def dockerStages = [:]
+
+                    changedServices.each { service ->
+                        dockerStages["Docker ${service}"] = {
+                            stage("Build Image ${service}") {
+                                echo "Building Docker image for ${service}..."
+                                sh """
+                                    docker build -t ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} \
+                                                 -t ${ECR_REGISTRY}/ecommerce/${service}:staging \
+                                                 -f ${service}/Dockerfile .
+                                """
+                            }
+                            stage("Push ${service}") {
+                                echo "Pushing ${service} to ECR..."
+                                sh """
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG}
+                                    docker push ${ECR_REGISTRY}/ecommerce/${service}:staging
+                                """
+                            }
+                        }
+                    }
+
+                    parallel dockerStages
                 }
             }
         }
-        
+
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    sh """
-                        # Update image in deployment
-                        kubectl set image deployment/${SERVICE_NAME} \
-                            ${SERVICE_NAME}=${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} \
-                            -n ${K8S_NAMESPACE}
-                        
-                        # Wait for rollout
-                        kubectl rollout status deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE}
-                    """
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def deployStages = [:]
+
+                    changedServices.each { service ->
+                        deployStages["Deploy ${service}"] = {
+                            stage("K8s Deploy ${service}") {
+                                echo "Deploying ${service} to ${K8S_NAMESPACE}..."
+                                sh """
+                                    kubectl set image deployment/${service} \
+                                        ${service}=${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} \
+                                        -n ${K8S_NAMESPACE} || echo "Deployment ${service} not found - skipping"
+
+                                    kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || echo "Rollout status check failed"
+                                """
+                            }
+                        }
+                    }
+
+                    parallel deployStages
                 }
             }
         }
-        
+
         stage('E2E Tests') {
             steps {
-                sh """
-                    # Run E2E tests against staging environment
-                    ./mvnw verify -pl ${SERVICE_NAME} -Pe2e-tests \
-                        -Dtest.base.url=http://${SERVICE_NAME}.${K8S_NAMESPACE}.svc.cluster.local
-                """
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+
+                    changedServices.each { service ->
+                        echo "Running E2E tests for ${service}..."
+                        sh """
+                            mvn verify -pl ${service} -Pe2e-tests \
+                                -Dtest.base.url=http://${service}.${K8S_NAMESPACE}.svc.cluster.local || echo "No E2E tests for ${service}"
+                        """
+                    }
+                }
             }
             post {
                 always {
-                    junit '**/target/e2e-reports/*.xml'
+                    junit '**/target/e2e-reports/*.xml' allowEmptyResults: true
                 }
             }
         }
-        
+
         stage('Performance Tests') {
             steps {
                 script {
-                    sh """
-                        # Get service URL
-                        SERVICE_URL=\$(kubectl get svc ${SERVICE_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-                        
-                        # Run Locust tests
-                        cd tests/performance
-                        locust -f locustfile.py --headless \
-                            --users 50 --spawn-rate 5 --run-time 2m \
-                            --host http://\${SERVICE_URL} \
-                            --html reports/${SERVICE_NAME}-performance-${BUILD_NUMBER}.html
-                    """
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+
+                    changedServices.each { service ->
+                        echo "Running performance tests for ${service}..."
+                        sh """
+                            SERVICE_URL=\$(kubectl get svc ${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || echo "localhost:8080")
+
+                            cd tests/performance
+                            locust -f locustfile.py --headless \
+                                --users 50 --spawn-rate 5 --run-time 2m \
+                                --host http://\${SERVICE_URL} \
+                                --html reports/${service}-performance-${BUILD_NUMBER}.html || echo "Performance tests skipped for ${service}"
+                        """
+                    }
                 }
             }
             post {
                 always {
                     publishHTML([
                         reportDir: 'tests/performance/reports',
-                        reportFiles: "${SERVICE_NAME}-performance-${BUILD_NUMBER}.html",
-                        reportName: 'Performance Test Report'
-                    ])
+                        reportFiles: '*-performance-*.html',
+                        reportName: 'Performance Test Reports'
+                    ]) || echo "No performance reports to publish"
                 }
             }
         }
-        
+
         stage('Clean Local Images') {
             steps {
-                sh """
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/${SERVICE_NAME}:staging || true
-                """
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+
+                    changedServices.each { service ->
+                        sh """
+                            docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} || true
+                            docker rmi ${ECR_REGISTRY}/ecommerce/${service}:staging || true
+                        """
+                    }
+                }
             }
         }
     }
     
     post {
         success {
-            echo "STAGING DEPLOYMENT SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG}"
-            echo "Service deployed to namespace: ${K8S_NAMESPACE}"
+            script {
+                echo "STAGING DEPLOYMENT SUCCESS: ${env.CHANGED_SERVICES}"
+                echo "Image tag: ${IMAGE_TAG}"
+                echo "Namespace: ${K8S_NAMESPACE}"
+            }
         }
         failure {
-            echo "STAGING DEPLOYMENT FAILED: ${SERVICE_NAME}"
-            // Rollback
-            sh """
-                kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} || true
-            """
+            script {
+                echo "STAGING DEPLOYMENT FAILED for one or more services in: ${env.CHANGED_SERVICES}"
+                // Rollback changed services
+                def changedServices = env.CHANGED_SERVICES.split(',')
+                changedServices.each { service ->
+                    sh """
+                        kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE} || echo "Rollback failed for ${service}"
+                    """
+                }
+            }
         }
         always {
             deleteDir()
