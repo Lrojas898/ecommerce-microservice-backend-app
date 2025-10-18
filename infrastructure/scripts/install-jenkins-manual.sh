@@ -1,7 +1,7 @@
 #!/bin/bash
 # Script para instalar Jenkins manualmente en la instancia EC2
 
-JENKINS_IP="98.91.95.121"
+JENKINS_IP="54.146.152.237"
 SSH_KEY="$HOME/.ssh/jenkins-key.pem"
 
 echo "=========================================="

@@ -3,8 +3,8 @@
 
 set -e
 
-JENKINS_IP="98.91.95.121"
-INSTANCE_ID="i-0af2fd5aff9ff71e8"
+JENKINS_IP="54.146.152.237"
+INSTANCE_ID="i-09f9de7050da37fb0"
 
 echo "=========================================="
 echo "🔍 Diagnóstico de Jenkins"
