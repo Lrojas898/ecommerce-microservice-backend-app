@@ -2,10 +2,18 @@
 FROM maven:3.8.7-openjdk-18-slim AS build
 WORKDIR /app
 
-# Copy parent pom and proxy-client (dependency)
+# Copy parent pom and all modules
 COPY pom.xml ./
+COPY service-discovery ./service-discovery
+COPY cloud-config ./cloud-config
+COPY api-gateway ./api-gateway
 COPY proxy-client ./proxy-client
+COPY user-service ./user-service
+COPY product-service ./product-service
+COPY favourite-service ./favourite-service
 COPY order-service ./order-service
+COPY shipping-service ./shipping-service
+COPY payment-service ./payment-service
 
 # Build the application
 RUN mvn clean package -pl order-service -am -DskipTests
