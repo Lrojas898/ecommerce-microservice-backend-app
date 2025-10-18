@@ -71,7 +71,7 @@ public class CredentialServiceImpl implements CredentialService {
 	@Override
 	public CredentialDto findByUsername(final String username) {
 		return CredentialMappingHelper.map(this.credentialRepository.findByUsername(username)
-				.orElseThrow(() -> new UserObjectNotFoundException(String.format("#### Credential with username: %s not found! ####", username))));
+				.orElseThrow(() -> new CredentialNotFoundException(String.format("#### Credential with username: %s not found! ####", username))));
 	}
 	
 	
