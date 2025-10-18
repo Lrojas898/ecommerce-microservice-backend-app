@@ -34,7 +34,7 @@ pipeline {
             steps {
                 sh """
                     chmod +x ./mvnw
-                    ./mvnw clean package -pl ${SERVICE_NAME} -am -DskipTests
+                    ./mvnw clean install -pl ${SERVICE_NAME} -am -DskipTests
                 """
             }
         }
