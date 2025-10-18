@@ -113,26 +113,31 @@ class FavouriteUserProductIntegrationTest {
 
     @Test
     void removeProductFromFavourites_shouldDelete() {
-        // Arrange
-        final LocalDateTime likeDate = LocalDateTime.now();
-        final Favourite favourite = this.favouriteRepository.save(Favourite.builder()
+        // Arrange - create multiple favourites
+        this.favouriteRepository.save(Favourite.builder()
                 .userId(4)
                 .productId(401)
-                .likeDate(likeDate)
+                .likeDate(LocalDateTime.now())
                 .build());
 
-        // Verify it was saved
-        assertThat(favourite.getUserId()).isEqualTo(4);
-        assertThat(favourite.getProductId()).isEqualTo(401);
+        this.favouriteRepository.save(Favourite.builder()
+                .userId(4)
+                .productId(402)
+                .likeDate(LocalDateTime.now())
+                .build());
 
         final long countBefore = this.favouriteRepository.count();
-        assertThat(countBefore).isEqualTo(1);
+        assertThat(countBefore).isEqualTo(2);
 
-        // Act - delete using the entity itself
-        this.favouriteRepository.delete(favourite);
+        // Act - delete all favourites for user 4
+        final var userFavourites = this.favouriteRepository.findAll().stream()
+            .filter(f -> f.getUserId().equals(4))
+            .toList();
+
+        this.favouriteRepository.deleteAll(userFavourites);
         this.favouriteRepository.flush();
 
-        // Assert - verify it was deleted
+        // Assert - verify they were deleted
         final long countAfter = this.favouriteRepository.count();
         assertThat(countAfter).isEqualTo(0);
     }
