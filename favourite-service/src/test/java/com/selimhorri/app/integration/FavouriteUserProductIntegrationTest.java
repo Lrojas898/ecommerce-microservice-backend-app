@@ -69,7 +69,6 @@ class FavouriteUserProductIntegrationTest {
 
         // Assert
         assertThat(saved).isNotNull();
-        assertThat(saved.getFavouriteId()).isNotNull();
         assertThat(saved.getUserId()).isEqualTo(1);
         assertThat(saved.getProductId()).isEqualTo(101);
         assertThat(saved.getLikeDate()).isNotNull();
@@ -119,17 +118,22 @@ class FavouriteUserProductIntegrationTest {
     @Test
     void removeProductFromFavourites_shouldDelete() {
         // Arrange
+        final LocalDateTime likeDate = LocalDateTime.now();
         final Favourite favourite = this.favouriteRepository.save(Favourite.builder()
                 .userId(4)
                 .productId(401)
-                .likeDate(LocalDateTime.now())
+                .likeDate(likeDate)
                 .build());
 
+        // Build composite key for deletion
+        final com.selimhorri.app.domain.id.FavouriteId favouriteId =
+            new com.selimhorri.app.domain.id.FavouriteId(4, 401, likeDate);
+
         // Act
-        this.favouriteRepository.deleteById(favourite.getFavouriteId());
+        this.favouriteRepository.deleteById(favouriteId);
 
         // Assert
-        final var remaining = this.favouriteRepository.findById(favourite.getFavouriteId());
+        final var remaining = this.favouriteRepository.findById(favouriteId);
         assertThat(remaining).isEmpty();
     }
 
