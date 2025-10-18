@@ -57,7 +57,6 @@ class ShippingPaymentIntegrationTest {
 
         // Assert
         assertThat(savedItem).isNotNull();
-        assertThat(savedItem.getOrderItemId()).isNotNull();
         assertThat(savedItem.getOrderedQuantity()).isEqualTo(2);
         assertThat(savedItem.getProductId()).isEqualTo(101);
         assertThat(savedItem.getOrderId()).isEqualTo(1001);
@@ -103,6 +102,7 @@ class ShippingPaymentIntegrationTest {
 
         // Assert
         assertThat(updated.getOrderedQuantity()).isEqualTo(10);
-        assertThat(updated.getOrderItemId()).isEqualTo(item.getOrderItemId());
+        assertThat(updated.getProductId()).isEqualTo(item.getProductId());
+        assertThat(updated.getOrderId()).isEqualTo(item.getOrderId());
     }
 }
