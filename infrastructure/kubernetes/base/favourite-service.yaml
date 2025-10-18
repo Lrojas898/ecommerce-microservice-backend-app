@@ -21,7 +21,7 @@ metadata:
   labels:
     app: favourite-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: favourite-service
@@ -49,11 +49,11 @@ spec:
           value: "false"
         resources:
           requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
             memory: "512Mi"
             cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
         livenessProbe:
           httpGet:
             path: /actuator/health
