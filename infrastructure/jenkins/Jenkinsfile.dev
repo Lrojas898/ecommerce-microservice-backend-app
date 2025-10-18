@@ -1,6 +1,10 @@
 pipeline {
     agent any
-    
+
+    tools {
+        maven 'maven-3.8'  // Usa la instalación de Maven configurada en Jenkins
+    }
+
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
@@ -98,7 +102,8 @@ pipeline {
             echo "BUILD FAILED: ${SERVICE_NAME}"
         }
         always {
-            cleanWs()
+            // Clean workspace - requires Workspace Cleanup plugin
+            deleteDir()
         }
     }
 }

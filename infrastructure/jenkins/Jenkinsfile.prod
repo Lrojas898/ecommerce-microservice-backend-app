@@ -1,7 +1,10 @@
 pipeline {
-
     agent any
-    
+
+    tools {
+        maven 'maven-3.8'
+    }
+
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
@@ -246,7 +249,7 @@ NOTES
             """
         }
         always {
-            cleanWs()
+            deleteDir()
         }
     }
 }
