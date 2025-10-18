@@ -1,4 +1,5 @@
 pipeline {
+
     agent any
     
     environment {
@@ -115,10 +116,10 @@ pipeline {
 
 ## Test Results
 
-✅ Unit Tests: PASSED  
-✅ Integration Tests: PASSED  
-✅ E2E Tests: PASSED  
-✅ Performance Tests: PASSED
+- Unit Tests: PASSED
+- Integration Tests: PASSED
+- E2E Tests: PASSED
+- Performance Tests: PASSED
 
 ## Deployment
 
@@ -133,9 +134,7 @@ kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE}
 ```
 
 ---
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
+*Generated automatically by Jenkins Pipeline*
 NOTES
                         
                         cat RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md
@@ -156,8 +155,8 @@ NOTES
                     
                     timeout(time: 30, unit: 'MINUTES') {
                         input message: """
-                        🚀 Deploy ${SERVICE_NAME} v${VERSION} to PRODUCTION?
-                        
+                        Deploy ${SERVICE_NAME} v${VERSION} to PRODUCTION?
+
                         Review the release notes and confirm deployment.
                         """,
                         parameters: [
@@ -193,8 +192,8 @@ NOTES
                         
                         # Basic health check
                         curl -f http://\${SERVICE_URL}/actuator/health || exit 1
-                        
-                        echo "✅ Smoke tests passed"
+
+                        echo "Smoke tests passed"
                     """
                 }
             }
@@ -225,22 +224,22 @@ NOTES
     post {
         success {
             echo """
-            ═══════════════════════════════════════════════════════════
-            ✅ PRODUCTION DEPLOYMENT SUCCESS
-            ═══════════════════════════════════════════════════════════
-            
+            ===============================================================
+            PRODUCTION DEPLOYMENT SUCCESS
+            ===============================================================
+
             Service: ${SERVICE_NAME}
             Version: v${VERSION}
             Image: ${IMAGE_TAG}
             Namespace: ${K8S_NAMESPACE}
-            
+
             Release Notes: RELEASE_NOTES_${SERVICE_NAME}_v${VERSION}.md
-            
-            ═══════════════════════════════════════════════════════════
+
+            ===============================================================
             """
         }
         failure {
-            echo "❌ PRODUCTION DEPLOYMENT FAILED: ${SERVICE_NAME} v${VERSION}"
+            echo "PRODUCTION DEPLOYMENT FAILED: ${SERVICE_NAME} v${VERSION}"
             echo "Automatic rollback triggered..."
             sh """
                 kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} || true

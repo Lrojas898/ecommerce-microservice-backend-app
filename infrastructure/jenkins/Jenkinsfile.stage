@@ -161,11 +161,11 @@ pipeline {
     
     post {
         success {
-            echo "✅ STAGING DEPLOYMENT SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG}"
+            echo "STAGING DEPLOYMENT SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG}"
             echo "Service deployed to namespace: ${K8S_NAMESPACE}"
         }
         failure {
-            echo "❌ STAGING DEPLOYMENT FAILED: ${SERVICE_NAME}"
+            echo "STAGING DEPLOYMENT FAILED: ${SERVICE_NAME}"
             // Rollback
             sh """
                 kubectl rollout undo deployment/${SERVICE_NAME} -n ${K8S_NAMESPACE} || true

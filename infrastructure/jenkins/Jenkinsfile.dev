@@ -92,10 +92,10 @@ pipeline {
     
     post {
         success {
-            echo "✅ BUILD SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG} pushed to ECR"
+            echo "BUILD SUCCESS: ${SERVICE_NAME}:${IMAGE_TAG} pushed to ECR"
         }
         failure {
-            echo "❌ BUILD FAILED: ${SERVICE_NAME}"
+            echo "BUILD FAILED: ${SERVICE_NAME}"
         }
         always {
             cleanWs()
