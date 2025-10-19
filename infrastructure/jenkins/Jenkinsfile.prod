@@ -750,6 +750,8 @@ NOTES
             steps {
                 script {
                     sh """
+                        git config user.email "jenkins@ecommerce-pipeline.local"
+                        git config user.name "Jenkins Pipeline"
                         git tag -a v${VERSION} -m "Release v${VERSION} - Services: ${CHANGED_SERVICES}"
                         git push origin v${VERSION} || echo "Tag already exists"
                     """
