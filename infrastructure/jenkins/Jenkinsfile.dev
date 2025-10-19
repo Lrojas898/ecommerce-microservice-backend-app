@@ -10,7 +10,7 @@ pipeline {
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        SERVICES = 'user-service,product-service,order-service,payment-service,shipping-service,favourite-service'
+        SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
     }
 
     stages {
@@ -77,7 +77,48 @@ favourite-service/"
                 }
             }
         }
-        
+
+        stage('Build service-discovery') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('service-discovery') }
+            }
+            steps {
+                sh "mvn clean install -pl service-discovery -am -DskipTests"
+            }
+        }
+
+        stage('Test service-discovery') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('service-discovery') }
+            }
+            steps {
+                sh "mvn test -pl service-discovery"
+            }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Build cloud-config') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('cloud-config') }
+            }
+            steps {
+                sh "mvn clean install -pl cloud-config -am -DskipTests"
+            }
+        }
+
+        stage('Test cloud-config') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('cloud-config') }
+            }
+            steps {
+                sh "mvn test -pl cloud-config"
+            }
+        }
+
         stage('Build user-service') {
             when {
                 expression { env.CHANGED_SERVICES.contains('user-service') }
@@ -191,11 +232,71 @@ favourite-service/"
             }
         }
 
+        stage('Build api-gateway') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('api-gateway') }
+            }
+            steps {
+                sh "mvn clean install -pl api-gateway -am -DskipTests"
+            }
+        }
+
+        stage('Test api-gateway') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('api-gateway') }
+            }
+            steps {
+                sh "mvn test -pl api-gateway"
+            }
+        }
+
         stage('ECR Login') {
             steps {
                 sh """
                     aws ecr get-login-password --region ${AWS_REGION} | \
                     docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                """
+            }
+        }
+
+        stage('Docker Build service-discovery') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('service-discovery') }
+            }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/service-discovery:latest \
+                                 -t ${ECR_REGISTRY}/ecommerce/service-discovery:dev \
+                                 -f service-discovery/Dockerfile .
+                    docker push ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/ecommerce/service-discovery:latest
+                    docker push ${ECR_REGISTRY}/ecommerce/service-discovery:dev
+                    docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:latest || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:dev || true
+                    docker builder prune -f
+                """
+            }
+        }
+
+        stage('Docker Build cloud-config') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('cloud-config') }
+            }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/cloud-config:latest \
+                                 -t ${ECR_REGISTRY}/ecommerce/cloud-config:dev \
+                                 -f cloud-config/Dockerfile .
+                    docker push ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/ecommerce/cloud-config:latest
+                    docker push ${ECR_REGISTRY}/ecommerce/cloud-config:dev
+                    docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:latest || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:dev || true
+                    docker builder prune -f
                 """
             }
         }
@@ -325,8 +426,29 @@ favourite-service/"
                 """
             }
         }
+
+        stage('Docker Build api-gateway') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('api-gateway') }
+            }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/api-gateway:latest \
+                                 -t ${ECR_REGISTRY}/ecommerce/api-gateway:dev \
+                                 -f api-gateway/Dockerfile .
+                    docker push ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/ecommerce/api-gateway:latest
+                    docker push ${ECR_REGISTRY}/ecommerce/api-gateway:dev
+                    docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:latest || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:dev || true
+                    docker builder prune -f
+                """
+            }
+        }
     }
-    
+
     post {
         success {
             script {
