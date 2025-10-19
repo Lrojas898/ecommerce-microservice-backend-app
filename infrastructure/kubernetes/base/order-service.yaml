@@ -62,9 +62,9 @@ spec:
             port: 8083
           initialDelaySeconds: 60
           periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8083
-          initialDelaySeconds: 30
-          periodSeconds: 5
+#        readinessProbe:
+#          httpGet:
+#            path: /actuator/health
+#            port: 8083
+#          initialDelaySeconds: 30
+#          periodSeconds: 5

@@ -59,10 +59,10 @@ spec:
           initialDelaySeconds: 60
           periodSeconds: 10
           failureThreshold: 5
-        readinessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8761
-          initialDelaySeconds: 30
-          periodSeconds: 5
-          failureThreshold: 3
+#        readinessProbe:
+#          httpGet:
+#            path: /actuator/health
+#            port: 8761
+#          initialDelaySeconds: 30
+#          periodSeconds: 5
+#          failureThreshold: 3
