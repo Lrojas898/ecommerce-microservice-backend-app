@@ -96,7 +96,7 @@ favourite-service/"
             }
             post {
                 always {
-                    junit '**/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -116,6 +116,11 @@ favourite-service/"
             }
             steps {
                 sh "mvn test -pl cloud-config"
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
             }
         }
 
@@ -137,7 +142,7 @@ favourite-service/"
             }
             post {
                 always {
-                    junit '**/target/surefire-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -158,6 +163,11 @@ favourite-service/"
             steps {
                 sh "mvn test -pl product-service"
             }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
+            }
         }
 
         stage('Build order-service') {
@@ -175,6 +185,11 @@ favourite-service/"
             }
             steps {
                 sh "mvn test -pl order-service"
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
             }
         }
 
@@ -194,6 +209,11 @@ favourite-service/"
             steps {
                 sh "mvn test -pl favourite-service"
             }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
+            }
         }
 
         stage('Build payment-service') {
@@ -211,6 +231,11 @@ favourite-service/"
             }
             steps {
                 sh "mvn test -pl payment-service"
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
             }
         }
 
@@ -230,6 +255,11 @@ favourite-service/"
             steps {
                 sh "mvn test -pl shipping-service"
             }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
+            }
         }
 
         stage('Build api-gateway') {
@@ -247,6 +277,11 @@ favourite-service/"
             }
             steps {
                 sh "mvn test -pl api-gateway"
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
             }
         }
 
