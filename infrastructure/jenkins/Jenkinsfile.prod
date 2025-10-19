@@ -624,10 +624,10 @@ NOTES
                     changedServices.each { service ->
                         sh """
                             cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
-\`\`\`bash
+```bash
 # Rollback ${service}
 kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE}
-\`\`\`
+```
 
 NOTES
                         """
