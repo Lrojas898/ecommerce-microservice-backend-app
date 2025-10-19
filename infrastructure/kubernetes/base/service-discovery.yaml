@@ -1,54 +1,44 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: user-service
+  name: service-discovery
   labels:
-    app: user-service
+    app: service-discovery
 spec:
   type: ClusterIP
   ports:
-    - port: 8081
-      targetPort: 8081
+    - port: 8761
+      targetPort: 8761
       protocol: TCP
       name: http
   selector:
-    app: user-service
+    app: service-discovery
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-service
+  name: service-discovery
   labels:
-    app: user-service
+    app: service-discovery
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: user-service
+      app: service-discovery
   template:
     metadata:
       labels:
-        app: user-service
+        app: service-discovery
     spec:
       containers:
-      - name: user-service
-        image: 020951019497.dkr.ecr.us-east-1.amazonaws.com/ecommerce/user-service:latest
+      - name: service-discovery
+        image: 020951019497.dkr.ecr.us-east-1.amazonaws.com/ecommerce/service-discovery:latest
         ports:
-        - containerPort: 8081
+        - containerPort: 8761
           name: http
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "default"
-        - name: SPRING_CONFIG_IMPORT
-          value: "optional:configserver:http://cloud-config:9296"
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: "http://service-discovery:8761/eureka/"
-        - name: EUREKA_CLIENT_ENABLED
-          value: "true"
-        - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
-          value: "true"
-        - name: EUREKA_CLIENT_FETCH_REGISTRY
-          value: "true"
         resources:
           requests:
             memory: "256Mi"
@@ -59,12 +49,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /actuator/health
-            port: 8081
+            port: 8761
           initialDelaySeconds: 60
           periodSeconds: 10
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /actuator/health
-            port: 8081
+            port: 8761
           initialDelaySeconds: 30
           periodSeconds: 5
+          failureThreshold: 3

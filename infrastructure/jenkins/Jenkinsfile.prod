@@ -10,7 +10,7 @@ pipeline {
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         K8S_NAMESPACE = 'production'
-        SERVICES = 'user-service,product-service,order-service,payment-service,shipping-service,favourite-service'
+        SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
     }
 
     stages {
@@ -80,7 +80,66 @@ favourite-service/"
                 }
             }
         }
-        
+
+        stage('Build service-discovery') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('service-discovery') }
+            }
+            steps {
+                sh "mvn clean install -pl service-discovery -am"
+            }
+        }
+
+        stage('Unit Tests service-discovery') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('service-discovery') }
+            }
+            steps {
+                sh "mvn test -pl service-discovery"
+            }
+            post {
+                always {
+                    junit '**/target/*-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Integration Tests service-discovery') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('service-discovery') }
+            }
+            steps {
+                sh "mvn verify -pl service-discovery -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
+        stage('Build cloud-config') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('cloud-config') }
+            }
+            steps {
+                sh "mvn clean install -pl cloud-config -am"
+            }
+        }
+
+        stage('Unit Tests cloud-config') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('cloud-config') }
+            }
+            steps {
+                sh "mvn test -pl cloud-config"
+            }
+        }
+
+        stage('Integration Tests cloud-config') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('cloud-config') }
+            }
+            steps {
+                sh "mvn verify -pl cloud-config -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
         stage('Build user-service') {
             when {
                 expression { env.CHANGED_SERVICES.contains('user-service') }
@@ -248,12 +307,92 @@ favourite-service/"
             }
         }
 
+        stage('Build api-gateway') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('api-gateway') }
+            }
+            steps {
+                sh "mvn clean install -pl api-gateway -am"
+            }
+        }
+
+        stage('Unit Tests api-gateway') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('api-gateway') }
+            }
+            steps {
+                sh "mvn test -pl api-gateway"
+            }
+            post {
+                always {
+                    junit '**/target/*-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Integration Tests api-gateway') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('api-gateway') }
+            }
+            steps {
+                sh "mvn verify -pl api-gateway -Pintegration-tests || echo 'No integration tests profile'"
+            }
+        }
+
         stage('ECR Login') {
             steps {
                 sh """
                     aws ecr get-login-password --region ${AWS_REGION} | \
                     docker login --username AWS --password-stdin ${ECR_REGISTRY}
                 """
+            }
+        }
+
+        stage('Docker Build service-discovery') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('service-discovery') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/service-discovery:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/service-discovery:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/service-discovery:production \
+                                     -f service-discovery/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/service-discovery:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/service-discovery:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/service-discovery:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:production || true
+                        docker builder prune -f
+                    """
+                }
+            }
+        }
+
+        stage('Docker Build cloud-config') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('cloud-config') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/cloud-config:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/cloud-config:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/cloud-config:production \
+                                     -f cloud-config/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/cloud-config:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/cloud-config:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/cloud-config:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:production || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -400,7 +539,31 @@ favourite-service/"
                 }
             }
         }
-        
+
+        stage('Docker Build api-gateway') {
+            when {
+                expression { env.CHANGED_SERVICES.contains('api-gateway') }
+            }
+            steps {
+                script {
+                    def imageTag = "v${env.VERSION}-${env.GIT_COMMIT_SHORT}"
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/api-gateway:${imageTag} \
+                                     -t ${ECR_REGISTRY}/ecommerce/api-gateway:v${env.VERSION} \
+                                     -t ${ECR_REGISTRY}/ecommerce/api-gateway:production \
+                                     -f api-gateway/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/api-gateway:${imageTag}
+                        docker push ${ECR_REGISTRY}/ecommerce/api-gateway:v${env.VERSION}
+                        docker push ${ECR_REGISTRY}/ecommerce/api-gateway:production
+                        docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:${imageTag} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:v${env.VERSION} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:production || true
+                        docker builder prune -f
+                    """
+                }
+            }
+        }
+
         stage('Generate Release Notes') {
             steps {
                 script {
@@ -529,17 +692,35 @@ NOTES
                     deploymentOrder.each { service ->
                         if (changedServices.contains(service)) {
                             echo "Deploying ${service} to production..."
-                            sh """
-                                kubectl set image deployment/${service} \
-                                    ${service}=${ECR_REGISTRY}/ecommerce/${service}:${imageTag} \
-                                    -n ${K8S_NAMESPACE} || echo "Deployment ${service} not found - skipping"
 
-                                kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || echo "Rollout status check failed"
-                            """
+                            // Check if deployment exists, if not create it
+                            def deploymentExists = sh(
+                                script: "kubectl get deployment ${service} -n ${K8S_NAMESPACE} 2>/dev/null",
+                                returnStatus: true
+                            )
 
-                            if (service == 'service-discovery' || service == 'cloud-config') {
-                                echo "Waiting for ${service} to be ready..."
-                                sleep 10
+                            if (deploymentExists != 0) {
+                                echo "Deployment ${service} not found, creating from manifest..."
+                                sh "kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}"
+                            } else {
+                                echo "Updating existing deployment ${service}..."
+                                sh """
+                                    kubectl set image deployment/${service} \
+                                        ${service}=${ECR_REGISTRY}/ecommerce/${service}:${imageTag} \
+                                        -n ${K8S_NAMESPACE}
+                                """
+                            }
+
+                            sh "kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || echo 'Rollout status check failed'"
+
+                            // Wait for critical infrastructure services
+                            if (service == 'service-discovery') {
+                                echo "Waiting 30s for Eureka to be fully ready..."
+                                sleep 30
+                            }
+                            if (service == 'cloud-config') {
+                                echo "Waiting 20s for Config Server to be fully ready..."
+                                sleep 20
                             }
                         }
                     }
