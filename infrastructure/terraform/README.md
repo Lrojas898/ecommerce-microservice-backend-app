@@ -1,13 +1,18 @@
 # Terraform Infrastructure for Ecommerce Microservices
 
-Este directorio contiene la configuración de Terraform para desplegar toda la infraestructura necesaria en AWS.
+Este directorio contiene la configuración de Terraform para desplegar toda la infraestructura necesaria en AWS para el **Taller 2: Pruebas y Lanzamiento**.
 
 ## Componentes
 
-- **Jenkins Server**: EC2 instance con Jenkins, Docker, AWS CLI, kubectl, Maven
-- **EKS Cluster**: Kubernetes cluster con 2-4 nodes
-- **IAM Roles**: Roles necesarios para Jenkins y EKS
-- **Security Groups**: Firewall rules para Jenkins
+- **ECR Repositories**: 9 repositorios para los microservicios e infraestructura
+  - service-discovery, cloud-config, api-gateway
+  - user-service, product-service, order-service, payment-service, shipping-service, favourite-service
+- **Jenkins Server**: EC2 instance (m7i-flex.large) con Jenkins, Docker, AWS CLI, kubectl, Maven
+- **SonarQube Server**: EC2 instance (t3.small) para análisis de calidad de código
+- **EKS Cluster**: Kubernetes cluster v1.28 con node group configurable (1-4 nodes t3.small)
+- **IAM Roles**: Roles necesarios para Jenkins, EKS cluster y EKS nodes
+- **Security Groups**: Firewall rules para Jenkins y SonarQube
+- **Elastic IPs**: IPs públicas fijas para Jenkins y SonarQube
 
 ## Requisitos Previos
 
@@ -36,38 +41,77 @@ terraform output > outputs.txt
 
 ## Después del Despliegue
 
-### 1. Acceder a Jenkins
+### 1. Ver toda la información de la infraestructura
+
+```bash
+# Ver resumen completo con todos los outputs
+terraform output next_steps
+
+# O ver outputs individuales
+terraform output jenkins_url
+terraform output sonarqube_url
+terraform output eks_cluster_name
+```
+
+### 2. Acceder a Jenkins
 
 ```bash
 # Obtener la URL de Jenkins
 terraform output jenkins_url
 
 # Obtener la contraseña inicial
-terraform output -raw get_jenkins_password | bash
+terraform output -raw get_jenkins_password
 ```
 
-### 2. Configurar kubectl
+### 3. Acceder a SonarQube
+
+```bash
+# Obtener la URL de SonarQube
+terraform output sonarqube_url
+
+# Credenciales por defecto: admin / admin (cambiar en primer login)
+```
+
+### 4. Configurar kubectl
 
 ```bash
 # Configurar kubectl para conectarse a EKS
-terraform output -raw configure_kubectl | bash
+terraform output -raw eks_kubectl_config
+
+# O ejecutar directamente:
+aws eks update-kubeconfig --region us-east-1 --name ecommerce-microservices-cluster
 
 # Verificar conexión
 kubectl get nodes
 
-# Crear namespaces
-kubectl create namespace dev
-kubectl create namespace staging
-kubectl create namespace production
+# Verificar namespaces (deben existir: dev, staging, production)
+kubectl get namespaces
 ```
 
-### 3. Configurar Jenkins
+### 5. Configurar Jenkins
 
-1. Acceder a Jenkins UI
-2. Instalar plugins sugeridos
-3. Crear usuario admin
-4. Configurar AWS credentials
-5. Configurar kubectl en Jenkins
+1. Acceder a Jenkins UI (http://JENKINS_IP:8080)
+2. Usar contraseña inicial obtenida en paso 2
+3. Instalar plugins recomendados:
+   - Docker Pipeline
+   - Kubernetes CLI
+   - AWS Steps
+   - Pipeline
+   - Git
+4. Crear usuario admin personalizado
+5. Configurar credenciales:
+   - AWS credentials (Access Key ID + Secret Access Key)
+   - GitHub credentials (si usas repo privado)
+   - Configurar kubectl access a EKS
+
+### 6. Crear Pipelines en Jenkins
+
+```bash
+# Los Jenkinsfiles están en:
+infrastructure/jenkins/Jenkinsfile.dev      # Build y push a ECR
+infrastructure/jenkins/Jenkinsfile.stage    # Deploy + Tests en Staging
+infrastructure/jenkins/Jenkinsfile.prod     # Deploy a Production con Release Notes
+```
 
 ## Destruir Infraestructura
 
@@ -77,31 +121,59 @@ kubectl create namespace production
 terraform destroy
 ```
 
-## Costos Estimados
+## Costos Estimados (US East 1)
 
-- Jenkins EC2 (t3.medium): ~$0.0416/hora = ~$30/mes
+- Jenkins EC2 (m7i-flex.large): ~$0.17/hora = ~$123/mes
+- SonarQube EC2 (t3.small): ~$0.0208/hora = ~$15/mes
 - EKS Control Plane: $0.10/hora = ~$72/mes
-- EKS Nodes (2x t3.medium): ~$0.0832/hora = ~$60/mes
-- **Total**: ~$162/mes
+- EKS Nodes (2x t3.small): ~$0.0416/hora = ~$30/mes
+- ECR Storage: ~$0.10/GB/mes (minimal para imágenes)
+- **Total**: ~$240/mes
 
-## Archivos
+### Tips para Reducir Costos:
+
+```bash
+# Escalar node group a 0 cuando no uses el cluster
+kubectl scale deployment --all --replicas=0 -n dev
+kubectl scale deployment --all --replicas=0 -n staging
+kubectl scale deployment --all --replicas=0 -n production
+
+# O reducir el node group completamente (requiere acceso AWS)
+aws eks update-nodegroup-config \
+  --cluster-name ecommerce-microservices-cluster \
+  --nodegroup-name standard-workers \
+  --scaling-config minSize=0,maxSize=4,desiredSize=0
+
+# Detener instancias EC2 cuando no uses (no eliminar)
+aws ec2 stop-instances --instance-ids <jenkins-instance-id> <sonarqube-instance-id>
+```
+
+## Estructura de Archivos
 
 ```
 terraform/
-├── provider.tf           # Provider AWS configuration
+├── provider.tf           # AWS provider configuration
 ├── variables.tf          # Variables globales
-├── main.tf              # Módulos principales
-├── outputs.tf           # Outputs principales
-├── terraform.tfvars     # Valores de variables
+├── main.tf              # Módulos principales (ECR, Jenkins, SonarQube, EKS)
+├── outputs.tf           # Outputs de todos los módulos
+├── terraform.tfvars     # Valores de variables (editable)
+├── ecr/
+│   ├── main.tf          # 9 ECR repositories
+│   ├── outputs.tf       # URLs y comandos ECR
+│   └── variables.tf     # Variables ECR
 ├── jenkins/
-│   ├── main.tf          # Jenkins EC2 configuration
-│   ├── outputs.tf       # Jenkins outputs
-│   ├── variables.tf     # Jenkins variables
-│   └── user-data.sh     # Script de instalación
+│   ├── main.tf          # Jenkins EC2 + Security Group
+│   ├── outputs.tf       # Jenkins URL, IP, SSH
+│   ├── variables.tf     # Variables Jenkins
+│   └── user-data.sh     # Script instalación Jenkins
+├── sonarqube/
+│   ├── main.tf          # SonarQube EC2 + Security Group
+│   ├── outputs.tf       # SonarQube URL, IP, credenciales
+│   └── variables.tf     # Variables SonarQube
 └── eks/
-    ├── main.tf          # EKS cluster configuration
-    ├── outputs.tf       # EKS outputs
-    └── variables.tf     # EKS variables
+    ├── main.tf          # EKS cluster + node group + IAM roles
+    ├── outputs.tf       # EKS endpoint, kubectl config
+    └── variables.tf     # Variables EKS
 ```
 
 ## Troubleshooting

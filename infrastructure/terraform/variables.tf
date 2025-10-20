@@ -19,7 +19,13 @@ variable "environment" {
 variable "jenkins_instance_type" {
   description = "EC2 instance type for Jenkins"
   type        = string
-  default     = "t2.micro"
+  default     = "m7i-flex.large"
+}
+
+variable "sonarqube_instance_type" {
+  description = "EC2 instance type for SonarQube"
+  type        = string
+  default     = "t3.small"
 }
 
 variable "eks_node_instance_type" {
@@ -37,7 +43,7 @@ variable "eks_desired_capacity" {
 variable "eks_min_capacity" {
   description = "Minimum number of EKS nodes"
   type        = number
-  default     = 0
+  default     = 1
 }
 
 variable "eks_max_capacity" {

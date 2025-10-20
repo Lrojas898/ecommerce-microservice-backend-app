@@ -5,10 +5,20 @@ pipeline {
         githubPush()
     }
 
+    // Este pipeline se ejecuta SOLO en el branch 'main' o 'master'
+    when {
+        anyOf {
+            branch 'main'
+            branch 'master'
+        }
+    }
+
     environment {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        IMAGE_TAG = "prod-${BUILD_NUMBER}"
+        GIT_BRANCH_NAME = "${env.BRANCH_NAME}"
         K8S_NAMESPACE = 'production'
         SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
     }

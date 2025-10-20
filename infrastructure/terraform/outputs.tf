@@ -30,6 +30,22 @@ output "get_jenkins_password" {
   value       = module.jenkins.get_jenkins_password_command
 }
 
+# SonarQube Outputs
+output "sonarqube_url" {
+  description = "SonarQube server URL"
+  value       = module.sonarqube.sonarqube_url
+}
+
+output "sonarqube_public_ip" {
+  description = "SonarQube public IP"
+  value       = module.sonarqube.sonarqube_public_ip
+}
+
+output "sonarqube_credentials" {
+  description = "SonarQube default credentials"
+  value       = module.sonarqube.default_credentials
+}
+
 # EKS Outputs
 output "eks_cluster_name" {
   description = "EKS cluster name"
@@ -59,7 +75,7 @@ output "next_steps" {
     ✅ INFRAESTRUCTURA DESPLEGADA EXITOSAMENTE
     ═══════════════════════════════════════════════════════════════════
 
-    📦 ECR REPOSITORIES CREADOS:
+    📦 ECR REPOSITORIES CREADOS (9 servicios):
     ${join("\n    ", [for name, url in module.ecr.repository_urls : "${name}: ${url}"])}
 
     🔐 ECR LOGIN:
@@ -70,8 +86,13 @@ output "next_steps" {
        IP:  ${module.jenkins.jenkins_public_ip}
        SSH: ${module.jenkins.jenkins_ssh_command}
 
-       Obtener contraseña:
+       Obtener contraseña inicial:
        ${module.jenkins.get_jenkins_password_command}
+
+    🔍 SONARQUBE SERVER:
+       URL: ${module.sonarqube.sonarqube_url}
+       IP:  ${module.sonarqube.sonarqube_public_ip}
+       Credenciales: ${module.sonarqube.default_credentials}
 
     ☸️  EKS CLUSTER:
        Nombre: ${module.eks.cluster_name}
@@ -85,6 +106,9 @@ output "next_steps" {
        kubectl create namespace staging
        kubectl create namespace production
 
+       Verificar node group:
+       kubectl get nodes
+
        ⚠️  PARA AHORRAR COSTOS (apagar sin eliminar):
        ${module.eks.scale_down_command}
 
@@ -92,10 +116,13 @@ output "next_steps" {
 
        1. Acceder a Jenkins: ${module.jenkins.jenkins_url}
        2. Configurar kubectl: ${module.eks.kubectl_config_command}
-       3. Crear namespaces de K8s
-       4. Build y push imágenes: ./infrastructure/scripts/build-and-push.sh user-service
-       5. Desplegar en K8s: kubectl apply -f infrastructure/kubernetes/base/
-       6. Configurar pipelines en Jenkins
+       3. Verificar namespaces: kubectl get namespaces
+       4. Configurar credenciales en Jenkins (AWS, GitHub, ECR)
+       5. Crear pipelines en Jenkins usando Jenkinsfiles en infrastructure/jenkins/
+       6. Ejecutar pipeline DEV para construir y pushear imágenes
+       7. Ejecutar pipeline STAGE para desplegar en staging
+       8. Ejecutar pruebas (unitarias, integración, E2E, performance)
+       9. Ejecutar pipeline PROD para desplegar en producción
 
     ═══════════════════════════════════════════════════════════════════
   EOT

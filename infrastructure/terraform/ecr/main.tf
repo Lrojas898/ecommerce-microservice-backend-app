@@ -1,6 +1,11 @@
-# ECR Repositories for the 6 microservices
+# ECR Repositories for all microservices and infrastructure components
 locals {
   services = [
+    # Infrastructure services
+    "service-discovery",
+    "cloud-config",
+    "api-gateway",
+    # Business microservices
     "user-service",
     "product-service",
     "order-service",
