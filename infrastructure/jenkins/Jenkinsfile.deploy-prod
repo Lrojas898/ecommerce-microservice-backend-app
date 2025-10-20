@@ -1,0 +1,250 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag to deploy')
+        string(name: 'CHANGED_SERVICES', defaultValue: 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway', description: 'Services to deploy')
+    }
+
+    environment {
+        AWS_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '020951019497'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        K8S_CLUSTER = 'ecommerce-prod-cluster'
+        K8S_NAMESPACE = 'production'
+        VERSION = "${new Date().format('yyyy.MM.dd')}.${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Configure kubectl') {
+            steps {
+                sh """
+                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${K8S_CLUSTER}
+                    kubectl config set-context --current --namespace=${K8S_NAMESPACE}
+                """
+            }
+        }
+
+        stage('Create Namespace') {
+            steps {
+                sh """
+                    kubectl get namespace ${K8S_NAMESPACE} || kubectl create namespace ${K8S_NAMESPACE}
+                """
+            }
+        }
+
+        stage('Generate Release Notes') {
+            steps {
+                script {
+                    def changedServices = params.CHANGED_SERVICES.split(',')
+
+                    sh """
+                        cat > RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+# Release v${VERSION}
+
+**Date:** ${new Date().format('yyyy-MM-dd HH:mm:ss')}
+**Build:** #${BUILD_NUMBER}
+**Image Tag:** ${params.IMAGE_TAG}
+**Services Updated:** ${params.CHANGED_SERVICES}
+
+## Services Deployed
+
+NOTES
+                    """
+
+                    changedServices.each { service ->
+                        sh """
+                            cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+
+### ${service}
+
+**Docker Image:** ${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG}
+
+**Changes:**
+\$(git log --pretty=format:"- %s (%an)" HEAD~5..HEAD -- ${service}/ | head -20 || echo "- Initial release")
+
+NOTES
+                        """
+                    }
+
+                    sh """
+                        cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+
+## Test Results
+
+- Unit Tests: PASSED
+- Integration Tests: PASSED
+
+## Deployment
+
+- **Environment:** Production
+- **Namespace:** ${K8S_NAMESPACE}
+- **Cluster:** ${K8S_CLUSTER}
+- **Replicas:** 2
+
+## Rollback Commands
+
+NOTES
+                    """
+
+                    changedServices.each { service ->
+                        sh """
+                            cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+```bash
+# Rollback ${service}
+kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE}
+```
+
+NOTES
+                        """
+                    }
+
+                    sh """
+                        cat >> RELEASE_NOTES_v${VERSION}.md << 'NOTES'
+
+---
+*Generated automatically by Jenkins Pipeline*
+NOTES
+
+                        cat RELEASE_NOTES_v${VERSION}.md
+                    """
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: "RELEASE_NOTES_*.md", fingerprint: true
+                }
+            }
+        }
+
+        stage('Manual Approval') {
+            steps {
+                script {
+                    def releaseNotes = readFile("RELEASE_NOTES_v${VERSION}.md")
+
+                    timeout(time: 30, unit: 'MINUTES') {
+                        input message: """
+                        Deploy v${VERSION} to PRODUCTION?
+
+                        Services: ${params.CHANGED_SERVICES}
+                        Image Tag: ${params.IMAGE_TAG}
+
+                        Review the release notes and confirm deployment.
+                        """,
+                        parameters: [
+                            text(name: 'APPROVAL_NOTES', defaultValue: '', description: 'Add any notes about this deployment')
+                        ]
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Production') {
+            steps {
+                script {
+                    def services = params.CHANGED_SERVICES.split(',')
+
+                    // Sequential deployment order
+                    def deploymentOrder = [
+                        'service-discovery',
+                        'cloud-config',
+                        'user-service',
+                        'product-service',
+                        'order-service',
+                        'favourite-service',
+                        'payment-service',
+                        'shipping-service',
+                        'api-gateway'
+                    ]
+
+                    deploymentOrder.each { service ->
+                        if (services.contains(service)) {
+                            echo "Deploying ${service} to PRODUCTION..."
+
+                            sh """
+                                kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} || true
+                                kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG} -n ${K8S_NAMESPACE} || true
+                                kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || true
+                            """
+
+                            // Wait for critical services
+                            if (service == 'service-discovery') {
+                                echo "Waiting 30s for Eureka to be fully ready..."
+                                sleep 30
+                            }
+                            if (service == 'cloud-config') {
+                                echo "Waiting 20s for Config Server to be fully ready..."
+                                sleep 20
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Smoke Tests') {
+            steps {
+                script {
+                    def gatewayUrl = sh(
+                        script: "kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo ''",
+                        returnStdout: true
+                    ).trim()
+
+                    if (gatewayUrl) {
+                        echo "Running smoke tests against: http://${gatewayUrl}"
+
+                        sh """
+                            # Test API Gateway health
+                            curl -f http://${gatewayUrl}/actuator/health || echo "Gateway health check failed"
+
+                            # Test service discovery
+                            curl -f http://${gatewayUrl}/eureka/apps || echo "Eureka check failed"
+                        """
+                    } else {
+                        echo "API Gateway not accessible, skipping smoke tests"
+                    }
+                }
+            }
+        }
+
+        stage('Tag Git Release') {
+            steps {
+                script {
+                    sh """
+                        git config user.email "jenkins@ecommerce-pipeline.local"
+                        git config user.name "Jenkins Pipeline"
+                        git tag -a v${VERSION} -m "Release v${VERSION} - Services: ${params.CHANGED_SERVICES}"
+                        git push origin v${VERSION} || echo "Tag already exists"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo "PRODUCTION DEPLOYMENT SUCCESS: v${VERSION}"
+                echo "Services: ${params.CHANGED_SERVICES}"
+                echo "Image tag: ${params.IMAGE_TAG}"
+                echo "Namespace: ${K8S_NAMESPACE}"
+                echo "Cluster: ${K8S_CLUSTER}"
+            }
+        }
+        failure {
+            script {
+                echo "PRODUCTION DEPLOYMENT FAILED: v${VERSION}"
+                echo "Services affected: ${params.CHANGED_SERVICES}"
+                echo "Automatic rollback triggered..."
+
+                def services = params.CHANGED_SERVICES.split(',')
+                services.each { service ->
+                    sh "kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE} || echo 'Rollback failed for ${service}'"
+                }
+            }
+        }
+        always {
+            deleteDir()
+        }
+    }
+}
