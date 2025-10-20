@@ -10,7 +10,7 @@ pipeline {
         AWS_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        K8S_CLUSTER = 'ecommerce-prod-cluster'
+        K8S_CLUSTER = 'ecommerce-microservices-cluster'
         K8S_NAMESPACE = 'production'
         VERSION = "${new Date().format('yyyy.MM.dd')}.${BUILD_NUMBER}"
     }
