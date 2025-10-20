@@ -458,10 +458,6 @@ favourite-service/"
             steps {
                 script {
                     build job: 'ecommerce-deploy-dev',
-                          parameters: [
-                              string(name: 'IMAGE_TAG', value: "${IMAGE_TAG}"),
-                              string(name: 'CHANGED_SERVICES', value: "${CHANGED_SERVICES}")
-                          ],
                           wait: false
                 }
             }
