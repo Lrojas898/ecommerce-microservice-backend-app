@@ -8,11 +8,6 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
-
-  filter {
-    name   = "availability-zone"
-    values = ["us-east-2a", "us-east-2b", "us-east-2c"]
-  }
 }
 
 # Get AWS account ID
