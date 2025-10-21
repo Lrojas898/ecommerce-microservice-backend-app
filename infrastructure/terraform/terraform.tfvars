@@ -1,4 +1,4 @@
-aws_region                = "us-east-1"
+aws_region                = "us-east-2"
 project_name              = "ecommerce-microservices"
 environment               = "dev"
 jenkins_instance_type     = "m7i-flex.large"   # Actual instance type in use
