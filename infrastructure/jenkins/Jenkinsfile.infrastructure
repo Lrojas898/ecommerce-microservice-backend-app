@@ -1,0 +1,132 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['plan', 'apply', 'destroy'],
+            description: 'Terraform action to execute'
+        )
+        booleanParam(
+            name: 'AUTO_APPROVE',
+            defaultValue: false,
+            description: 'Auto-approve terraform apply/destroy (use with caution!)'
+        )
+    }
+
+    environment {
+        AWS_REGION = 'us-east-1'
+        TF_IN_AUTOMATION = 'true'
+        TF_INPUT = 'false'
+        TF_CLI_ARGS = '-no-color'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Checked out branch: ${env.BRANCH_NAME}"
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir('infrastructure/terraform') {
+                    sh '''
+                        echo "Initializing Terraform..."
+                        terraform init -upgrade
+                    '''
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                dir('infrastructure/terraform') {
+                    sh '''
+                        echo "Validating Terraform configuration..."
+                        terraform validate
+                    '''
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('infrastructure/terraform') {
+                    sh '''
+                        echo "Running Terraform plan..."
+                        terraform plan -out=tfplan
+                    '''
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                script {
+                    dir('infrastructure/terraform') {
+                        if (params.AUTO_APPROVE) {
+                            echo "Auto-approving Terraform apply..."
+                            sh 'terraform apply -auto-approve tfplan'
+                        } else {
+                            input message: 'Do you want to apply this Terraform plan?', ok: 'Apply'
+                            sh 'terraform apply tfplan'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when {
+                expression { params.ACTION == 'destroy' }
+            }
+            steps {
+                script {
+                    dir('infrastructure/terraform') {
+                        if (params.AUTO_APPROVE) {
+                            echo "Auto-approving Terraform destroy..."
+                            sh 'terraform destroy -auto-approve'
+                        } else {
+                            input message: 'Are you sure you want to DESTROY the infrastructure?', ok: 'Destroy'
+                            sh 'terraform destroy -auto-approve'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Save Plan Output') {
+            when {
+                expression { params.ACTION == 'plan' }
+            }
+            steps {
+                dir('infrastructure/terraform') {
+                    sh '''
+                        echo "Saving plan output..."
+                        terraform show tfplan > plan-output.txt
+                    '''
+                    archiveArtifacts artifacts: 'plan-output.txt', fingerprint: true
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Terraform ${params.ACTION} completed successfully!"
+        }
+        failure {
+            echo "Terraform ${params.ACTION} failed!"
+        }
+        always {
+            dir('infrastructure/terraform') {
+                sh 'rm -f tfplan plan-output.txt || true'
+            }
+        }
+    }
+}
