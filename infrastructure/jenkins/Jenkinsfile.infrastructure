@@ -15,7 +15,7 @@ pipeline {
     }
 
     environment {
-        AWS_REGION = 'us-east-1'
+        AWS_REGION = 'us-east-2'
         TF_IN_AUTOMATION = 'true'
         TF_INPUT = 'false'
         TF_CLI_ARGS = '-no-color'
