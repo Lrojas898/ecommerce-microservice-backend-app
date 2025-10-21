@@ -30,20 +30,15 @@ output "get_jenkins_password" {
   value       = module.jenkins.get_jenkins_password_command
 }
 
-# SonarQube Outputs
+# SonarQube Outputs (runs on same instance as Jenkins via Docker Compose)
 output "sonarqube_url" {
-  description = "SonarQube server URL"
-  value       = module.sonarqube.sonarqube_url
-}
-
-output "sonarqube_public_ip" {
-  description = "SonarQube public IP"
-  value       = module.sonarqube.sonarqube_public_ip
+  description = "SonarQube server URL (running on Jenkins instance)"
+  value       = "http://${module.jenkins.jenkins_public_ip}:9000"
 }
 
 output "sonarqube_credentials" {
   description = "SonarQube default credentials"
-  value       = module.sonarqube.default_credentials
+  value       = "Username: admin | Password: admin (change on first login)"
 }
 
 # EKS Outputs
@@ -89,10 +84,9 @@ output "next_steps" {
        Obtener contraseña inicial:
        ${module.jenkins.get_jenkins_password_command}
 
-    🔍 SONARQUBE SERVER:
-       URL: ${module.sonarqube.sonarqube_url}
-       IP:  ${module.sonarqube.sonarqube_public_ip}
-       Credenciales: ${module.sonarqube.default_credentials}
+    🔍 SONARQUBE SERVER (running on Jenkins instance):
+       URL: http://${module.jenkins.jenkins_public_ip}:9000
+       Credenciales: admin / admin (change on first login)
 
     ☸️  EKS CLUSTER:
        Nombre: ${module.eks.cluster_name}

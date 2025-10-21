@@ -43,11 +43,3 @@ module "eks" {
   eks_max_capacity       = var.eks_max_capacity
   subnet_ids             = data.aws_subnets.default.ids
 }
-
-# SonarQube Module (optional - for code quality analysis)
-module "sonarqube" {
-  source = "./sonarqube"
-
-  project_name              = var.project_name
-  sonarqube_instance_type   = var.sonarqube_instance_type
-}
