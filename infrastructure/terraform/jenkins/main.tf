@@ -24,17 +24,12 @@ resource "aws_security_group" "jenkins" {
   }
 }
 
-# User data script for Jenkins installation
-data "template_file" "jenkins_user_data" {
-  template = file("${path.module}/user-data.sh")
-}
-
 # EC2 Instance for Jenkins (sin IAM profile - configurar AWS CLI manualmente después)
 resource "aws_instance" "jenkins" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = var.jenkins_instance_type
   vpc_security_group_ids = [aws_security_group.jenkins.id]
-  user_data              = data.template_file.jenkins_user_data.rendered
+  user_data              = file("${path.module}/user-data.sh")
 
   root_block_device {
     volume_size = 30

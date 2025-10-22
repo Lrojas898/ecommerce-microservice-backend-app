@@ -8,11 +8,6 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
-
-  filter {
-    name   = "availability-zone"
-    values = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d", "us-east-1f"]
-  }
 }
 
 # Get AWS account ID
@@ -47,12 +42,4 @@ module "eks" {
   eks_min_capacity       = var.eks_min_capacity
   eks_max_capacity       = var.eks_max_capacity
   subnet_ids             = data.aws_subnets.default.ids
-}
-
-# SonarQube Module (optional - for code quality analysis)
-module "sonarqube" {
-  source = "./sonarqube"
-
-  project_name              = var.project_name
-  sonarqube_instance_type   = var.sonarqube_instance_type
 }

@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = "us-east-2"
 }
 
 variable "project_name" {
@@ -17,15 +17,9 @@ variable "environment" {
 }
 
 variable "jenkins_instance_type" {
-  description = "EC2 instance type for Jenkins"
+  description = "EC2 instance type for Jenkins (also runs SonarQube via Docker Compose)"
   type        = string
   default     = "m7i-flex.large"
-}
-
-variable "sonarqube_instance_type" {
-  description = "EC2 instance type for SonarQube"
-  type        = string
-  default     = "t3.small"
 }
 
 variable "eks_node_instance_type" {
