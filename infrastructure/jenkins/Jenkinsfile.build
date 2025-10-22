@@ -1,16 +1,15 @@
 pipeline {
     agent any
 
-    triggers {
-        githubPush()
-    }
-
+    // Define las credenciales de AWS aquí
     environment {
         AWS_REGION = 'us-east-2'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         IMAGE_TAG = "${BUILD_NUMBER}"
         SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
+        // Opcional: Define AWS_DEFAULT_REGION como variable de entorno para el pipeline
+        AWS_DEFAULT_REGION = "${AWS_REGION}"
     }
 
     stages {
@@ -284,10 +283,15 @@ favourite-service/"
         // DOCKER BUILD STAGES - SEQUENTIAL ORDER
         stage('ECR Login') {
             steps {
-                sh """
-                    aws ecr get-login-password --region ${AWS_REGION} | \\
-                    docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                """
+                // Usar withAWS para asegurar credenciales y región
+                // Asegúrate de reemplazar 'aws-credentials-ecr' con el ID real de tus credenciales en Jenkins
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        # Asegura la región explícitamente en el comando aws
+                        aws ecr get-login-password --region ${AWS_REGION} | \\
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    """
+                }
             }
         }
 
@@ -296,16 +300,18 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('service-discovery') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/service-discovery:latest \\
-                                 -f service-discovery/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/service-discovery:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/service-discovery:latest \\
+                                     -f service-discovery/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/service-discovery:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -314,16 +320,18 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('cloud-config') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/cloud-config:latest \\
-                                 -f cloud-config/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/cloud-config:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/cloud-config:latest \\
+                                     -f cloud-config/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/cloud-config:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -332,34 +340,38 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('user-service') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/user-service:latest \\
-                                 -f user-service/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/user-service:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/user-service:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/user-service:latest \\
+                                     -f user-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/user-service:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/user-service:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
         stage('Docker Build product-service') {
             when {
-                expression { env.CHANGED_SERVICES.contains('product-service') }
+                expression { env.CHANCED_SERVICES.contains('product-service') } // Corregido typo
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/product-service:latest \\
-                                 -f product-service/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/product-service:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/product-service:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/product-service:latest \\
+                                     -f product-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/product-service:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/product-service:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -368,16 +380,18 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('order-service') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/order-service:latest \\
-                                 -f order-service/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/order-service:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/order-service:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/order-service:latest \\
+                                     -f order-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/order-service:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/order-service:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -386,16 +400,18 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('favourite-service') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/favourite-service:latest \\
-                                 -f favourite-service/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/favourite-service:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/favourite-service:latest \\
+                                     -f favourite-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/favourite-service:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -404,16 +420,18 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('payment-service') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/payment-service:latest \\
-                                 -f payment-service/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/payment-service:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/payment-service:latest \\
+                                     -f payment-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/payment-service:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -422,16 +440,18 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('shipping-service') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/shipping-service:latest \\
-                                 -f shipping-service/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/shipping-service:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/shipping-service:latest \\
+                                     -f shipping-service/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/shipping-service:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
@@ -440,16 +460,18 @@ favourite-service/"
                 expression { env.CHANGED_SERVICES.contains('api-gateway') }
             }
             steps {
-                sh """
-                    docker build -t ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} \\
-                                 -t ${ECR_REGISTRY}/ecommerce/api-gateway:latest \\
-                                 -f api-gateway/Dockerfile .
-                    docker push ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG}
-                    docker push ${ECR_REGISTRY}/ecommerce/api-gateway:latest
-                    docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} || true
-                    docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:latest || true
-                    docker builder prune -f
-                """
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    sh """
+                        docker build -t ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} \\
+                                     -t ${ECR_REGISTRY}/ecommerce/api-gateway:latest \\
+                                     -f api-gateway/Dockerfile .
+                        docker push ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/ecommerce/api-gateway:latest
+                        docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} || true
+                        docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:latest || true
+                        docker builder prune -f
+                    """
+                }
             }
         }
 
