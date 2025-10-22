@@ -102,7 +102,7 @@ favourite-service/"
         }
 
         stage('Build product-service') {
-            when { expression { env.CHANGED_SERVICES.contains('product-service') } } // ✅ Fixed typo
+            when { expression { env.CHANGED_SERVICES.contains('product-service') } }
             steps { sh "mvn clean install -pl product-service -am -DskipTests" }
         }
         stage('Test product-service') {
@@ -229,7 +229,7 @@ favourite-service/"
         }
 
         stage('Docker Build product-service') {
-            when { expression { env.CHANGED_SERVICES.contains('product-service') } } // ✅ Corrected
+            when { expression { env.CHANGED_SERVICES.contains('product-service') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
