@@ -1,14 +1,12 @@
 pipeline {
     agent any
 
-    // Define las credenciales de AWS aquí
     environment {
         AWS_REGION = 'us-east-2'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         IMAGE_TAG = "${BUILD_NUMBER}"
         SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
-        // Opcional: Define AWS_DEFAULT_REGION como variable de entorno para el pipeline
         AWS_DEFAULT_REGION = "${AWS_REGION}"
     }
 
@@ -72,233 +70,115 @@ favourite-service/"
             }
         }
 
-        // BUILD STAGES - SEQUENTIAL ORDER
+        // BUILD & TEST STAGES
         stage('Build service-discovery') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('service-discovery') }
-            }
-            steps {
-                sh "mvn clean install -pl service-discovery -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('service-discovery') } }
+            steps { sh "mvn clean install -pl service-discovery -am -DskipTests" }
         }
-
         stage('Test service-discovery') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('service-discovery') }
-            }
-            steps {
-                sh "mvn test -pl service-discovery"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('service-discovery') } }
+            steps { sh "mvn test -pl service-discovery" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build cloud-config') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('cloud-config') }
-            }
-            steps {
-                sh "mvn clean install -pl cloud-config -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('cloud-config') } }
+            steps { sh "mvn clean install -pl cloud-config -am -DskipTests" }
         }
-
         stage('Test cloud-config') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('cloud-config') }
-            }
-            steps {
-                sh "mvn test -pl cloud-config"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('cloud-config') } }
+            steps { sh "mvn test -pl cloud-config" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build user-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('user-service') }
-            }
-            steps {
-                sh "mvn clean install -pl user-service -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('user-service') } }
+            steps { sh "mvn clean install -pl user-service -am -DskipTests" }
         }
-
         stage('Test user-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('user-service') }
-            }
-            steps {
-                sh "mvn test -pl user-service"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('user-service') } }
+            steps { sh "mvn test -pl user-service" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build product-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('product-service') }
-            }
-            steps {
-                sh "mvn clean install -pl product-service -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('product-service') } } // ✅ Fixed typo
+            steps { sh "mvn clean install -pl product-service -am -DskipTests" }
         }
-
         stage('Test product-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('product-service') }
-            }
-            steps {
-                sh "mvn test -pl product-service"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('product-service') } }
+            steps { sh "mvn test -pl product-service" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build order-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('order-service') }
-            }
-            steps {
-                sh "mvn clean install -pl order-service -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('order-service') } }
+            steps { sh "mvn clean install -pl order-service -am -DskipTests" }
         }
-
         stage('Test order-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('order-service') }
-            }
-            steps {
-                sh "mvn test -pl order-service"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('order-service') } }
+            steps { sh "mvn test -pl order-service" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build favourite-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('favourite-service') }
-            }
-            steps {
-                sh "mvn clean install -pl favourite-service -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('favourite-service') } }
+            steps { sh "mvn clean install -pl favourite-service -am -DskipTests" }
         }
-
         stage('Test favourite-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('favourite-service') }
-            }
-            steps {
-                sh "mvn test -pl favourite-service"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('favourite-service') } }
+            steps { sh "mvn test -pl favourite-service" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build payment-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('payment-service') }
-            }
-            steps {
-                sh "mvn clean install -pl payment-service -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('payment-service') } }
+            steps { sh "mvn clean install -pl payment-service -am -DskipTests" }
         }
-
         stage('Test payment-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('payment-service') }
-            }
-            steps {
-                sh "mvn test -pl payment-service"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('payment-service') } }
+            steps { sh "mvn test -pl payment-service" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build shipping-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('shipping-service') }
-            }
-            steps {
-                sh "mvn clean install -pl shipping-service -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('shipping-service') } }
+            steps { sh "mvn clean install -pl shipping-service -am -DskipTests" }
         }
-
         stage('Test shipping-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('shipping-service') }
-            }
-            steps {
-                sh "mvn test -pl shipping-service"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('shipping-service') } }
+            steps { sh "mvn test -pl shipping-service" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
         stage('Build api-gateway') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('api-gateway') }
-            }
-            steps {
-                sh "mvn clean install -pl api-gateway -am -DskipTests"
-            }
+            when { expression { env.CHANGED_SERVICES.contains('api-gateway') } }
+            steps { sh "mvn clean install -pl api-gateway -am -DskipTests" }
         }
-
         stage('Test api-gateway') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('api-gateway') }
-            }
-            steps {
-                sh "mvn test -pl api-gateway"
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
-                }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('api-gateway') } }
+            steps { sh "mvn test -pl api-gateway" }
+            post { always { junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml' } }
         }
 
-        // DOCKER BUILD STAGES - SEQUENTIAL ORDER
+        // ECR LOGIN — SAFE & REGION-EXPLICIT
         stage('ECR Login') {
             steps {
-                // Usar withAWS para asegurar credenciales y región
-                // Asegúrate de reemplazar 'aws-credentials-ecr' con el ID real de tus credenciales en Jenkins
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
-                    sh """
-                        # Asegura la región explícitamente en el comando aws
-                        aws ecr get-login-password --region ${AWS_REGION} | \\
-                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                    """
+                    script {
+                        def ecrPassword = sh(
+                            script: "aws ecr get-login-password --region ${env.AWS_REGION}",
+                            returnStdout: true
+                        ).trim()
+                        sh "docker login --username AWS --password-stdin ${env.ECR_REGISTRY} <<< '${ecrPassword}'"
+                    }
                 }
             }
         }
 
+        // DOCKER BUILD & PUSH STAGES
         stage('Docker Build service-discovery') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('service-discovery') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('service-discovery') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -309,16 +189,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/service-discovery:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build cloud-config') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('cloud-config') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('cloud-config') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -329,16 +206,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/cloud-config:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build user-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('user-service') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('user-service') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -349,16 +223,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/user-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/user-service:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build product-service') {
-            when {
-                expression { env.CHANCED_SERVICES.contains('product-service') } // Corregido typo
-            }
+            when { expression { env.CHANGED_SERVICES.contains('product-service') } } // ✅ Corrected
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -369,16 +240,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/product-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/product-service:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build order-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('order-service') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('order-service') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -389,16 +257,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/order-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/order-service:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build favourite-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('favourite-service') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('favourite-service') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -409,16 +274,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/favourite-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build payment-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('payment-service') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('payment-service') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -429,16 +291,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/payment-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build shipping-service') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('shipping-service') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('shipping-service') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -449,16 +308,13 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/shipping-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
         stage('Docker Build api-gateway') {
-            when {
-                expression { env.CHANGED_SERVICES.contains('api-gateway') }
-            }
+            when { expression { env.CHANGED_SERVICES.contains('api-gateway') } }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     sh """
@@ -469,18 +325,15 @@ favourite-service/"
                         docker push ${ECR_REGISTRY}/ecommerce/api-gateway:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} || true
                         docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:latest || true
-                        docker builder prune -f
                     """
                 }
             }
         }
 
-        // TRIGGER DEV DEPLOYMENT
         stage('Trigger DEV Deploy') {
             steps {
                 script {
-                    build job: 'ecommerce-deploy-dev',
-                          wait: false
+                    build job: 'ecommerce-deploy-dev', wait: false
                 }
             }
         }
