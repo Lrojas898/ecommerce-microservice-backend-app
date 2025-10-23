@@ -49,7 +49,7 @@ services:
     image: jenkins/jenkins:lts
     container_name: jenkins
     environment:
-      - DOCKER_HOST=tcp://localhost:2375
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - JENKINS_UC=http://updates.jenkins.io
       - JENKINS_UC_EXPERIMENTAL=http://updates.jenkins.io/experimental
       - JENKINS_INCREMENTALS_REPO_MIRROR=http://repo.jenkins-ci.org/incrementals
