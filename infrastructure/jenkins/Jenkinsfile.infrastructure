@@ -4,13 +4,13 @@ pipeline {
     parameters {
         choice(
             name: 'ACTION',
-            choices: ['plan', 'apply', 'destroy'],
+            choices: ['plan', 'apply'],
             description: 'Terraform action to execute'
         )
         booleanParam(
             name: 'AUTO_APPROVE',
             defaultValue: false,
-            description: 'Auto-approve terraform apply/destroy (use with caution!)'
+            description: 'Auto-approve terraform apply (use with caution!)'
         )
     }
 
@@ -90,27 +90,6 @@ pipeline {
                             } else {
                                 input message: 'Do you want to apply this Terraform plan?', ok: 'Apply'
                                 sh 'terraform apply tfplan'
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Terraform Destroy') {
-            when {
-                expression { params.ACTION == 'destroy' }
-            }
-            steps {
-                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
-                    script {
-                        dir('infrastructure/terraform') {
-                            if (params.AUTO_APPROVE) {
-                                echo "Auto-approving Terraform destroy..."
-                                sh 'terraform destroy -auto-approve'
-                            } else {
-                                input message: 'Are you sure you want to DESTROY the infrastructure?', ok: 'Destroy'
-                                sh 'terraform destroy -auto-approve'
                             }
                         }
                     }
