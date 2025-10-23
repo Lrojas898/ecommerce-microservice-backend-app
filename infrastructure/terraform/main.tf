@@ -22,14 +22,14 @@ module "ecr" {
   aws_account_id = data.aws_caller_identity.current.account_id
 }
 
-# Jenkins Module
-module "jenkins" {
-  source = "./jenkins"
-
-  project_name          = var.project_name
-  jenkins_instance_type = var.jenkins_instance_type
-  allowed_cidr_blocks   = var.allowed_cidr_blocks
-}
+# Jenkins Module - Commented out to prevent pipeline from modifying its own infrastructure
+# module "jenkins" {
+#   source = "./jenkins"
+#
+#   project_name          = var.project_name
+#   jenkins_instance_type = var.jenkins_instance_type
+#   allowed_cidr_blocks   = var.allowed_cidr_blocks
+# }
 
 # EKS Module
 module "eks" {

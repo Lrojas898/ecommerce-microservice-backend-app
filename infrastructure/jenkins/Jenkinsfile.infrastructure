@@ -1,19 +1,6 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(
-            name: 'ACTION',
-            choices: ['plan', 'apply'],
-            description: 'Terraform action to execute'
-        )
-        booleanParam(
-            name: 'AUTO_APPROVE',
-            defaultValue: false,
-            description: 'Auto-approve terraform apply (use with caution!)'
-        )
-    }
-
     environment {
         AWS_REGION = 'us-east-2'
         TF_IN_AUTOMATION = 'true'
@@ -50,6 +37,19 @@ pipeline {
             }
         }
 
+        stage('Terraform Format') {
+            steps {
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    dir('infrastructure/terraform') {
+                        sh '''
+                            echo "Formatting Terraform files..."
+                            terraform fmt -recursive
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Terraform Validate') {
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
@@ -77,38 +77,13 @@ pipeline {
         }
 
         stage('Terraform Apply') {
-            when {
-                expression { params.ACTION == 'apply' }
-            }
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     script {
                         dir('infrastructure/terraform') {
-                            if (params.AUTO_APPROVE) {
-                                echo "Auto-approving Terraform apply..."
-                                sh 'terraform apply -auto-approve tfplan'
-                            } else {
-                                input message: 'Do you want to apply this Terraform plan?', ok: 'Apply'
-                                sh 'terraform apply tfplan'
-                            }
+                            input message: 'Do you want to apply this Terraform plan?', ok: 'Apply'
+                            sh 'terraform apply -auto-approve tfplan'
                         }
-                    }
-                }
-            }
-        }
-
-        stage('Save Plan Output') {
-            when {
-                expression { params.ACTION == 'plan' }
-            }
-            steps {
-                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
-                    dir('infrastructure/terraform') {
-                        sh '''
-                            echo "Saving plan output..."
-                            terraform show tfplan > plan-output.txt
-                        '''
-                        archiveArtifacts artifacts: 'plan-output.txt', fingerprint: true
                     }
                 }
             }
@@ -117,14 +92,14 @@ pipeline {
 
     post {
         success {
-            echo "Terraform ${params.ACTION} completed successfully!"
+            echo "Terraform pipeline completed successfully!"
         }
         failure {
-            echo "Terraform ${params.ACTION} failed!"
+            echo "Terraform pipeline failed!"
         }
         always {
             dir('infrastructure/terraform') {
-                sh 'rm -f tfplan plan-output.txt || true'
+                sh 'rm -f tfplan || true'
             }
         }
     }
