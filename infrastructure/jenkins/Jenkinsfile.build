@@ -166,11 +166,10 @@ favourite-service/"
             steps {
                 withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
                     script {
-                        def ecrPassword = sh(
-                            script: "aws ecr get-login-password --region ${env.AWS_REGION}",
-                            returnStdout: true
-                        ).trim()
-                        sh "docker login --username AWS --password-stdin ${env.ECR_REGISTRY} <<< '${ecrPassword}'"
+                        sh """
+                            aws ecr get-login-password --region ${env.AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${env.ECR_REGISTRY}
+                        """
                     }
                 }
             }
