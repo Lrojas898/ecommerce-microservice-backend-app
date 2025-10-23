@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
       - name: cloud-config
-        image: 020951019497.dkr.ecr.us-east-1.amazonaws.com/ecommerce/cloud-config:latest
+        image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/cloud-config:latest
         ports:
         - containerPort: 9296
           name: http

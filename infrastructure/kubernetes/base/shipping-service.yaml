@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
       - name: shipping-service
-        image: 020951019497.dkr.ecr.us-east-1.amazonaws.com/ecommerce/shipping-service:latest
+        image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/shipping-service:latest
         ports:
         - containerPort: 8085
           name: http

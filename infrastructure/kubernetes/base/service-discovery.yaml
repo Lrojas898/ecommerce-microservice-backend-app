@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
       - name: service-discovery
-        image: 020951019497.dkr.ecr.us-east-1.amazonaws.com/ecommerce/service-discovery:latest
+        image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/service-discovery:latest
         ports:
         - containerPort: 8761
           name: http

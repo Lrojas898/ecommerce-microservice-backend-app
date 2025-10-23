@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
       - name: product-service
-        image: 020951019497.dkr.ecr.us-east-1.amazonaws.com/ecommerce/product-service:latest
+        image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/product-service:latest
         ports:
         - containerPort: 8082
           name: http
