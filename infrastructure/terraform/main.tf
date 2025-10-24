@@ -26,9 +26,10 @@ module "ecr" {
 module "jenkins" {
   source = "./jenkins"
 
-  project_name          = var.project_name
-  jenkins_instance_type = var.jenkins_instance_type
-  allowed_cidr_blocks   = var.allowed_cidr_blocks
+  project_name                 = var.project_name
+  jenkins_instance_type        = var.jenkins_instance_type
+  jenkins_agent_instance_type  = var.jenkins_agent_instance_type
+  allowed_cidr_blocks          = var.allowed_cidr_blocks
 }
 
 # EKS Module
