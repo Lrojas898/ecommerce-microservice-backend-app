@@ -1,6 +1,22 @@
 pipeline {
     agent any
 
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref'],
+                [key: 'repository_name', value: '$.repository.name'],
+                [key: 'pusher_name', value: '$.pusher.name']
+            ],
+            causeString: 'Triggered by GitHub push to $ref by $pusher_name',
+            token: 'ecommerce-build-webhook-token',
+            tokenCredentialId: '',
+            printContributedVariables: true,
+            printPostContent: true,
+            silentResponse: false
+        )
+    }
+
     environment {
         AWS_REGION = 'us-east-2'
         AWS_ACCOUNT_ID = '020951019497'
