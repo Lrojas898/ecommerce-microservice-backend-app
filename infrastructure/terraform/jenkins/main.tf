@@ -39,6 +39,12 @@ resource "aws_instance" "jenkins" {
   tags = {
     Name = "${var.project_name}-jenkins-server"
   }
+
+  # Prevent accidental destruction of Jenkins server
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [user_data, ami]
+  }
 }
 
 # Get latest Amazon Linux 2023 AMI
