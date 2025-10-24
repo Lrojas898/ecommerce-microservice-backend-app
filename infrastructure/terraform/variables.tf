@@ -22,6 +22,12 @@ variable "jenkins_instance_type" {
   default     = "m7i-flex.large"
 }
 
+variable "jenkins_agent_instance_type" {
+  description = "EC2 instance type for Jenkins Agent"
+  type        = string
+  default     = "t3.small"
+}
+
 variable "eks_node_instance_type" {
   description = "EC2 instance type for EKS nodes"
   type        = string
