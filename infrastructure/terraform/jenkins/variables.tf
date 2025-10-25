@@ -4,8 +4,14 @@ variable "project_name" {
 }
 
 variable "jenkins_instance_type" {
-  description = "EC2 instance type for Jenkins"
+  description = "EC2 instance type for Jenkins Master"
   type        = string
+}
+
+variable "jenkins_agent_instance_type" {
+  description = "EC2 instance type for Jenkins Agent"
+  type        = string
+  default     = "t3.small"
 }
 
 variable "allowed_cidr_blocks" {
