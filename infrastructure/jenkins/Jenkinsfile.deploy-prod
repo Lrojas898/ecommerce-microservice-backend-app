@@ -187,6 +187,7 @@ NOTES
                             sh """
                                 kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} || true
                                 kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG} -n ${K8S_NAMESPACE} || true
+                                kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE} || true
                                 kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || true
                             """
 
