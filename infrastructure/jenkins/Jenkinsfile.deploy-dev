@@ -29,6 +29,29 @@ pipeline {
             }
         }
 
+        stage('Clean Old Pods') {
+            steps {
+                script {
+                    echo "Scaling down old ReplicaSets to free memory for new deployments..."
+                    def services = env.ALL_SERVICES.split(',')
+                    services.each { service ->
+                        sh """
+                            # Get old replicasets (not the latest one)
+                            OLD_RS=\$(kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name | head -n -1)
+
+                            if [ ! -z "\$OLD_RS" ]; then
+                                echo "Scaling down old ReplicaSets for ${service}..."
+                                for rs in \$OLD_RS; do
+                                    kubectl scale \$rs -n ${K8S_NAMESPACE} --replicas=0 || true
+                                done
+                            fi
+                        """
+                    }
+                    echo "Old pods cleanup completed"
+                }
+            }
+        }
+
         stage('Deploy Services') {
             steps {
                 script {
