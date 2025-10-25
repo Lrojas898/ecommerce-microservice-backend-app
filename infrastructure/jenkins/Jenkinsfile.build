@@ -27,6 +27,28 @@ pipeline {
     }
 
     stages {
+        stage('Cleanup Docker') {
+            steps {
+                script {
+                    echo "Cleaning up Docker resources to free disk space..."
+                    sh """
+                        # Remove stopped containers
+                        docker container prune -f || true
+
+                        # Remove dangling images
+                        docker image prune -f || true
+
+                        # Remove unused build cache (keep last 24h)
+                        docker builder prune -f --keep-storage 2GB || true
+
+                        # Show disk usage
+                        df -h /var/lib/docker || true
+                        docker system df || true
+                    """
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
