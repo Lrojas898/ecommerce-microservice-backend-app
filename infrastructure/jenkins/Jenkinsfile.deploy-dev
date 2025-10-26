@@ -114,8 +114,8 @@ pipeline {
 
                     if (gatewayUrl && gatewayUrl != 'localhost') {
                         echo "Running E2E tests against: http://${gatewayUrl}"
-                        echo "Waiting 30 seconds for services to be fully ready..."
-                        sleep 30
+                        echo "Waiting 180 seconds for all services to register with Eureka and be fully ready..."
+                        sleep 180
 
                         sh """
                             cd tests

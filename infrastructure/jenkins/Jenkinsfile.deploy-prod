@@ -216,6 +216,8 @@ NOTES
 
                     if (gatewayUrl) {
                         echo "Running smoke tests against: http://${gatewayUrl}"
+                        echo "Waiting 180 seconds for all services to register with Eureka and be fully ready..."
+                        sleep 180
 
                         sh """
                             # Test API Gateway health
