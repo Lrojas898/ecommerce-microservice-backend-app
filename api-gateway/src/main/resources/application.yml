@@ -37,38 +37,26 @@ spring:
         uri: lb://ORDER-SERVICE
         predicates:
         - Path=/order-service/**
-        filters:
-        - StripPrefix=0
       - id: PAYMENT-SERVICE
         uri: lb://PAYMENT-SERVICE
         predicates:
         - Path=/payment-service/**
-        filters:
-        - StripPrefix=0
       - id: PRODUCT-SERVICE
         uri: lb://PRODUCT-SERVICE
         predicates:
         - Path=/product-service/**
-        filters:
-        - StripPrefix=0
       - id: SHIPPING-SERVICE
         uri: lb://SHIPPING-SERVICE
         predicates:
         - Path=/shipping-service/**
-        filters:
-        - StripPrefix=0
       - id: USER-SERVICE
         uri: lb://USER-SERVICE
         predicates:
         - Path=/user-service/**
-        filters:
-        - StripPrefix=0
       - id: FAVOURITE-SERVICE
         uri: lb://FAVOURITE-SERVICE
         predicates:
         - Path=/favourite-service/**
-        filters:
-        - StripPrefix=0
       - id: PROXY-CLIENT
         uri: lb://PROXY-CLIENT
         predicates:
