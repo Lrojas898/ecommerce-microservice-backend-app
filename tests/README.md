@@ -62,20 +62,23 @@ Desde el directorio `tests/`:
 ```bash
 # Con variable de entorno
 export API_URL="http://<tu-api-gateway-url>"
-mvn clean test
+mvn clean verify
 
 # O directamente en el comando
-mvn clean test -DAPI_URL="http://<tu-api-gateway-url>"
+mvn clean verify -DAPI_URL="http://<tu-api-gateway-url>"
+
+# Con el perfil e2e-tests
+mvn clean verify -Pe2e-tests -Dtest.base.url="http://<tu-api-gateway-url>"
 ```
 
 ### Opción 3: Ejecutar Tests Individuales
 
 ```bash
-# Un test específico
-mvn test -Dtest=UserRegistrationE2ETest
+# Un test específico (Failsafe usa -Dit.test)
+mvn verify -Dit.test=UserRegistrationE2ETest
 
 # Un método específico
-mvn test -Dtest=UserRegistrationE2ETest#completeUserRegistrationFlow_shouldSucceed
+mvn verify -Dit.test=UserRegistrationE2ETest#completeUserRegistrationFlow_shouldSucceed
 ```
 
 ## Tests Disponibles
@@ -188,14 +191,19 @@ kubectl describe configmap <api-gateway-config> -n dev
 
 ## Reportes de Tests
 
-Los reportes de Maven se generan en:
+Los reportes de Maven Failsafe se generan en:
 ```
-tests/target/surefire-reports/
+tests/target/failsafe-reports/
 ```
 
 Para ver un resumen:
 ```bash
-cat tests/target/surefire-reports/*.txt
+cat tests/target/failsafe-reports/*.txt
+```
+
+También se generan reportes XML para integración con Jenkins:
+```
+tests/target/failsafe-reports/*.xml
 ```
 
 ## Integración con CI/CD
@@ -204,7 +212,7 @@ Para integrar con Jenkins u otro sistema de CI/CD:
 
 ```bash
 # Ejecutar y generar reporte XML
-mvn clean test -DAPI_URL="${API_GATEWAY_URL}"
+mvn clean verify -Pe2e-tests -Dtest.base.url="${API_GATEWAY_URL}"
 
 # El código de salida será 0 si todos los tests pasan, ≠0 si alguno falla
 echo $?
