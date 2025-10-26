@@ -39,6 +39,8 @@ spec:
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "default"
+        - name: CLIENT_HOST
+          value: "*"
         - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
           value: "http://service-discovery:8761/eureka/"
         - name: EUREKA_CLIENT_ENABLED
