@@ -114,17 +114,15 @@ pipeline {
 
                     if (gatewayUrl && gatewayUrl != 'localhost') {
                         echo "Running E2E tests against: http://${gatewayUrl}"
+                        echo "Waiting 30 seconds for services to be fully ready..."
+                        sleep 30
 
-                        def services = env.ALL_SERVICES.split(',')
-                        services.each { service ->
-                            if (service != 'service-discovery' && service != 'cloud-config' && service != 'api-gateway') {
-                                sh """
-                                    mvn verify -pl ${service} -Pe2e-tests \\
-                                        -Dtest.base.url=http://${gatewayUrl} \\
-                                        -Dtest.timeout=30000 || echo "E2E tests not configured for ${service}"
-                                """
-                            }
-                        }
+                        sh """
+                            cd tests
+                            mvn clean verify -Pe2e-tests \\
+                                -Dtest.base.url=http://${gatewayUrl} \\
+                                -Dtest.timeout=30000
+                        """
                     } else {
                         echo "API Gateway not accessible externally, skipping E2E tests"
                     }
@@ -132,7 +130,7 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: '**/target/failsafe-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: 'tests/target/failsafe-reports/*.xml'
                 }
             }
         }
