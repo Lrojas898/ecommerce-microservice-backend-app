@@ -1,4 +1,4 @@
-
+# Product Service Configuration
 server:
   port: 8082
   servlet:

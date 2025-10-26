@@ -1,4 +1,4 @@
-
+# User Service Configuration
 server:
   port: 8081
   servlet:
