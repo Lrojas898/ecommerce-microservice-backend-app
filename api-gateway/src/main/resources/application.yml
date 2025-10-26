@@ -21,7 +21,7 @@ spring:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowed-origins: "${CLIENT_HOST:http://localhost:4200}"
+            allowed-origin-patterns: "${CLIENT_HOST:http://localhost:4200}"
             allowed-headers: "*"
             exposed-headers: "*"
             allow-credentials: true
