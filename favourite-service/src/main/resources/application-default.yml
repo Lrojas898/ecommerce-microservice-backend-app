@@ -1,4 +1,3 @@
-
 server:
   port: 8086
 
@@ -44,4 +43,3 @@ logging:
             rest: DEBUG
             jpa: DEBUG
             orm: DEBUG
-
