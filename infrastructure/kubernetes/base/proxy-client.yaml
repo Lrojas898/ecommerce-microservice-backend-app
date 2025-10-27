@@ -23,6 +23,10 @@ spec:
         env:
         - name: SPRING_PROFILES_ACTIVE
           value: "default"
+        - name: SPRING_CONFIG_IMPORT
+          value: "optional:configserver:http://cloud-config:9296"
+        - name: SPRING_ZIPKIN_BASE_URL
+          value: "http://zipkin:9411/"
         - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
           value: "http://service-discovery:8761/eureka/"
         - name: EUREKA_CLIENT_ENABLED
