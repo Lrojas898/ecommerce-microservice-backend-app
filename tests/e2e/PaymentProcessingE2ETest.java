@@ -30,7 +30,7 @@ import io.restassured.http.ContentType;
 @TestInstance(Lifecycle.PER_CLASS)
 class PaymentProcessingE2ETest {
 
-    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://localhost:8080");
+    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://localhost:8900");
 
     @BeforeAll
     void setup() {
@@ -51,7 +51,7 @@ class PaymentProcessingE2ETest {
                 .contentType(ContentType.JSON)
                 .body(orderPayload)
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .extract()
@@ -69,7 +69,7 @@ class PaymentProcessingE2ETest {
                 .contentType(ContentType.JSON)
                 .body(paymentPayload)
         .when()
-                .post("/payment-service/api/payments")
+                .post("/app/api/payments")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("paymentId", notNullValue())
@@ -84,7 +84,7 @@ class PaymentProcessingE2ETest {
                 .contentType(ContentType.JSON)
                 .body("{\"orderDesc\":\"Quick Order\",\"orderFee\":49.99}")
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .extract()
@@ -95,7 +95,7 @@ class PaymentProcessingE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"isPayed\":false}", orderId))
         .when()
-                .post("/payment-service/api/payments")
+                .post("/app/api/payments")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .extract()
@@ -114,7 +114,7 @@ class PaymentProcessingE2ETest {
                 .contentType(ContentType.JSON)
                 .body(updatePayload)
         .when()
-                .put("/payment-service/api/payments/" + paymentId)
+                .put("/app/api/payments/" + paymentId)
         .then()
                 .statusCode(anyOf(is(200), is(204)))
                 .body("isPayed", anyOf(equalTo(true), nullValue()));
@@ -127,7 +127,7 @@ class PaymentProcessingE2ETest {
                 .contentType(ContentType.JSON)
                 .body("{\"orderDesc\":\"Details Test\",\"orderFee\":199.99}")
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .extract()
                 .path("orderId");
@@ -137,7 +137,7 @@ class PaymentProcessingE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
         .when()
-                .post("/payment-service/api/payments")
+                .post("/app/api/payments")
         .then()
                 .extract()
                 .path("paymentId");
@@ -145,7 +145,7 @@ class PaymentProcessingE2ETest {
         // Step 3: Get payment with order details
         given()
         .when()
-                .get("/payment-service/api/payments/" + paymentId)
+                .get("/app/api/payments/" + paymentId)
         .then()
                 .statusCode(200)
                 .body("paymentId", equalTo(paymentId))
@@ -157,7 +157,7 @@ class PaymentProcessingE2ETest {
     void getAllPayments_shouldReturnPaymentList() {
         given()
         .when()
-                .get("/payment-service/api/payments")
+                .get("/app/api/payments")
         .then()
                 .statusCode(200)
                 .body("$", anyOf(empty(), not(empty())));

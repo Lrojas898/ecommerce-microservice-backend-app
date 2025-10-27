@@ -29,7 +29,7 @@ import io.restassured.RestAssured;
 @TestInstance(Lifecycle.PER_CLASS)
 class ProductBrowsingE2ETest {
 
-    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://localhost:8080");
+    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com");
 
     @BeforeAll
     void setup() {
@@ -40,7 +40,7 @@ class ProductBrowsingE2ETest {
     void browseAllProducts_shouldReturnProductList() {
         given()
         .when()
-                .get("/product-service/api/products")
+                .get("/app/api/products")
         .then()
                 .statusCode(200)
                 .body("$", not(empty()))
@@ -54,7 +54,7 @@ class ProductBrowsingE2ETest {
         // Step 1: Get first product ID
         final Integer productId = given()
         .when()
-                .get("/product-service/api/products")
+                .get("/app/api/products")
         .then()
                 .statusCode(200)
                 .extract()
@@ -63,7 +63,7 @@ class ProductBrowsingE2ETest {
         // Step 2: View product details
         given()
         .when()
-                .get("/product-service/api/products/" + productId)
+                .get("/app/api/products/" + productId)
         .then()
                 .statusCode(200)
                 .body("productId", equalTo(productId))
@@ -78,7 +78,7 @@ class ProductBrowsingE2ETest {
         // Step 1: Get all categories
         given()
         .when()
-                .get("/product-service/api/categories")
+                .get("/app/api/categories")
         .then()
                 .statusCode(200)
                 .body("$", not(empty()));
@@ -86,7 +86,7 @@ class ProductBrowsingE2ETest {
         // Step 2: Get category ID
         final Integer categoryId = given()
         .when()
-                .get("/product-service/api/categories")
+                .get("/app/api/categories")
         .then()
                 .statusCode(200)
                 .extract()
@@ -96,7 +96,7 @@ class ProductBrowsingE2ETest {
         given()
                 .queryParam("categoryId", categoryId)
         .when()
-                .get("/product-service/api/products/search")
+                .get("/app/api/products/search")
         .then()
                 .statusCode(anyOf(is(200), is(404)))  // 404 if no products in category
                 .body("$", anyOf(empty(), not(empty())));
@@ -119,7 +119,7 @@ class ProductBrowsingE2ETest {
                 .contentType("application/json")
                 .body(favouritePayload)
         .when()
-                .post("/favourite-service/api/favourites")
+                .post("/app/api/favourites")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("userId", equalTo(userId))
@@ -133,7 +133,7 @@ class ProductBrowsingE2ETest {
 
         given()
         .when()
-                .get("/favourite-service/api/favourites/user/" + userId)
+                .get("/app/api/favourites/user/" + userId)
         .then()
                 .statusCode(anyOf(is(200), is(404)))
                 .body("$", anyOf(empty(), not(empty())));

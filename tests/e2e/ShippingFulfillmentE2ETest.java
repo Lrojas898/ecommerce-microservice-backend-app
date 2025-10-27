@@ -27,7 +27,7 @@ import io.restassured.http.ContentType;
 @TestInstance(Lifecycle.PER_CLASS)
 class ShippingFulfillmentE2ETest {
 
-    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://localhost:8080");
+    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com");
 
     @BeforeAll
     void setup() {
@@ -41,7 +41,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body("{\"orderDesc\":\"Shipping Test Order\",\"orderFee\":75.00}")
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .extract()
@@ -52,7 +52,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
         .when()
-                .post("/payment-service/api/payments")
+                .post("/app/api/payments")
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
@@ -69,7 +69,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(shippingPayload)
         .when()
-                .post("/shipping-service/api/order-items")
+                .post("/app/api/order-items")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("orderItemId", notNullValue())
@@ -84,7 +84,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body("{\"orderDesc\":\"Multi-item Order\",\"orderFee\":150.00}")
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .extract()
                 .path("orderId");
@@ -94,7 +94,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":1}", orderId))
         .when()
-                .post("/shipping-service/api/order-items")
+                .post("/app/api/order-items")
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
@@ -102,7 +102,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":2,\"orderedQuantity\":3}", orderId))
         .when()
-                .post("/shipping-service/api/order-items")
+                .post("/app/api/order-items")
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
@@ -110,7 +110,7 @@ class ShippingFulfillmentE2ETest {
         given()
                 .queryParam("orderId", orderId)
         .when()
-                .get("/shipping-service/api/order-items/search")
+                .get("/app/api/order-items/search")
         .then()
                 .statusCode(anyOf(is(200), is(404)))
                 .body("$", anyOf(empty(), hasSize(greaterThanOrEqualTo(2))));
@@ -125,7 +125,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body("{\"orderDesc\":\"Complete Workflow Test\",\"orderFee\":500.00}")
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("orderId", notNullValue())
@@ -137,7 +137,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
         .when()
-                .post("/payment-service/api/payments")
+                .post("/app/api/payments")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("isPayed", equalTo(true));
@@ -147,7 +147,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":5}", orderId))
         .when()
-                .post("/shipping-service/api/order-items")
+                .post("/app/api/order-items")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("orderedQuantity", equalTo(5));
@@ -155,7 +155,7 @@ class ShippingFulfillmentE2ETest {
         // Step 4: Verify order still exists and is complete
         given()
         .when()
-                .get("/order-service/api/orders/" + orderId)
+                .get("/app/api/orders/" + orderId)
         .then()
                 .statusCode(200)
                 .body("orderId", equalTo(orderId))
@@ -166,7 +166,7 @@ class ShippingFulfillmentE2ETest {
     void getAllShippingItems_shouldReturnList() {
         given()
         .when()
-                .get("/shipping-service/api/order-items")
+                .get("/app/api/order-items")
         .then()
                 .statusCode(200)
                 .body("$", anyOf(empty(), not(empty())));

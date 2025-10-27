@@ -29,7 +29,7 @@ import io.restassured.http.ContentType;
 @TestInstance(Lifecycle.PER_CLASS)
 class UserRegistrationE2ETest {
 
-    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://localhost:8080");
+    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com");
 
     @BeforeAll
     void setup() {
@@ -54,7 +54,7 @@ class UserRegistrationE2ETest {
                 .contentType(ContentType.JSON)
                 .body(registrationPayload)
         .when()
-                .post("/user-service/api/users/register")
+                .post("/app/api/users/register")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("firstName", equalTo("E2E"))
@@ -81,7 +81,7 @@ class UserRegistrationE2ETest {
                 .contentType(ContentType.JSON)
                 .body(registrationPayload)
         .when()
-                .post("/user-service/api/users/register")
+                .post("/app/api/users/register")
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
@@ -97,7 +97,7 @@ class UserRegistrationE2ETest {
                 .contentType(ContentType.JSON)
                 .body(loginPayload)
         .when()
-                .post("/user-service/api/auth/login")
+                .post("/app/api/auth/login")
         .then()
                 .statusCode(200)
                 .body("token", notNullValue())
@@ -122,7 +122,7 @@ class UserRegistrationE2ETest {
                 .contentType(ContentType.JSON)
                 .body(registrationPayload)
         .when()
-                .post("/user-service/api/users/register")
+                .post("/app/api/users/register")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .extract()
@@ -140,7 +140,7 @@ class UserRegistrationE2ETest {
                 .contentType(ContentType.JSON)
                 .body(loginPayload)
         .when()
-                .post("/user-service/api/auth/login")
+                .post("/app/api/auth/login")
         .then()
                 .statusCode(200)
                 .extract()
@@ -150,7 +150,7 @@ class UserRegistrationE2ETest {
         given()
                 .header("Authorization", "Bearer " + token)
         .when()
-                .get("/user-service/api/users/" + userId)
+                .get("/app/api/users/" + userId)
         .then()
                 .statusCode(200)
                 .body("firstName", equalTo("Profile"))
