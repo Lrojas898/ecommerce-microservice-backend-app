@@ -40,7 +40,7 @@ class ProductBrowsingE2ETest {
     void browseAllProducts_shouldReturnProductList() {
         given()
         .when()
-                .get("/product-service/api/products")
+                .get("/app/api/products")
         .then()
                 .statusCode(200)
                 .body("collection", not(empty()))
@@ -54,7 +54,7 @@ class ProductBrowsingE2ETest {
         // Step 1: Get first product ID
         final Integer productId = given()
         .when()
-                .get("/product-service/api/products")
+                .get("/app/api/products")
         .then()
                 .statusCode(200)
                 .extract()
@@ -63,7 +63,7 @@ class ProductBrowsingE2ETest {
         // Step 2: View product details
         given()
         .when()
-                .get("/product-service/api/products/" + productId)
+                .get("/app/api/products/" + productId)
         .then()
                 .statusCode(200)
                 .body("productId", equalTo(productId))
@@ -96,7 +96,7 @@ class ProductBrowsingE2ETest {
         given()
                 .queryParam("categoryId", categoryId)
         .when()
-                .get("/product-service/api/products/search")
+                .get("/app/api/products/search")
         .then()
                 .statusCode(anyOf(is(200), is(404)))  // 404 if no products in category
                 .body("$", anyOf(empty(), not(empty())));

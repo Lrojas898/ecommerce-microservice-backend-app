@@ -12,6 +12,8 @@ pipeline {
         K8S_CLUSTER = 'ecommerce-microservices-cluster'
         K8S_NAMESPACE = 'dev'
         ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
+        MAX_RETRY_COUNT = '3'
+        SERVICE_READINESS_TIMEOUT = '300' // 5 minutes in seconds
     }
 
     stages {
@@ -55,40 +57,137 @@ pipeline {
             }
         }
 
-        stage('Deploy Services') {
+        stage('Deploy Infrastructure Services') {
             steps {
                 script {
-                    // Sequential deployment order - always deploy all services
-                    def deploymentOrder = [
-                        'service-discovery',
-                        'cloud-config',
+                    // Deploy and verify core infrastructure services first
+                    def infraServices = ['service-discovery', 'cloud-config']
+                    
+                    infraServices.each { service ->
+                        echo "Deploying ${service}..."
+                        
+                        sh """
+                            kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                            kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG} -n ${K8S_NAMESPACE}
+                            kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                        """
+                        
+                        // Wait for deployment to be ready with retries
+                        def ready = false
+                        def retryCount = 0
+                        
+                        while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
+                            try {
+                                sh """
+                                    kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                                    if [ "${service}" = "service-discovery" ]; then
+                                        # Wait for Eureka to be ready
+                                        echo "Waiting for Eureka to be fully ready..."
+                                        sleep 60
+                                        # Verify Eureka is responding
+                                        kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s --retry 5 --retry-delay 10 http://localhost:8761/eureka/apps
+                                    elif [ "${service}" = "cloud-config" ]; then
+                                        # Wait for Config Server
+                                        echo "Waiting for Config Server to be fully ready..."
+                                        sleep 45
+                                        # Verify Config Server is responding
+                                        kubectl exec -n ${K8S_NAMESPACE} deploy/cloud-config -- curl -s --retry 5 --retry-delay 10 http://localhost:8888/actuator/health
+                                    fi
+                                """
+                                ready = true
+                            } catch (Exception e) {
+                                retryCount++
+                                echo "Attempt ${retryCount}/${env.MAX_RETRY_COUNT} failed for ${service}. Retrying..."
+                                if (retryCount >= env.MAX_RETRY_COUNT.toInteger()) {
+                                    error "Failed to deploy ${service} after ${env.MAX_RETRY_COUNT} attempts"
+                                }
+                                sleep 30
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Microservices') {
+            steps {
+                script {
+                    def microservices = [
                         'user-service',
                         'product-service',
                         'order-service',
                         'favourite-service',
                         'payment-service',
-                        'shipping-service',
-                        'api-gateway'
+                        'shipping-service'
                     ]
 
-                    deploymentOrder.each { service ->
+                    microservices.each { service ->
                         echo "Deploying ${service}..."
-
+                        
                         sh """
-                            kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} || true
-                            kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG} -n ${K8S_NAMESPACE} || true
-                            kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE} || true
-                            kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || true
+                            kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                            kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG} -n ${K8S_NAMESPACE}
+                            kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
                         """
-
-                        // Wait for critical services
-                        if (service == 'service-discovery') {
-                            echo "Waiting 30s for Eureka to be fully ready..."
-                            sleep 30
+                        
+                        // Wait for deployment with retries
+                        def ready = false
+                        def retryCount = 0
+                        
+                        while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
+                            try {
+                                sh """
+                                    kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                                    # Verify service registered with Eureka
+                                    echo "Verifying ${service} registration with Eureka..."
+                                    kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s --retry 5 --retry-delay 10 http://localhost:8761/eureka/apps/${service.toUpperCase()} | grep "status"
+                                """
+                                ready = true
+                            } catch (Exception e) {
+                                retryCount++
+                                echo "Attempt ${retryCount}/${env.MAX_RETRY_COUNT} failed for ${service}. Retrying..."
+                                if (retryCount >= env.MAX_RETRY_COUNT.toInteger()) {
+                                    error "Failed to deploy ${service} after ${env.MAX_RETRY_COUNT} attempts"
+                                }
+                                sleep 30
+                            }
                         }
-                        if (service == 'cloud-config') {
-                            echo "Waiting 20s for Config Server to be fully ready..."
-                            sleep 20
+                    }
+                }
+            }
+        }
+
+        stage('Deploy API Gateway') {
+            steps {
+                script {
+                    echo "Deploying api-gateway..."
+                    
+                    sh """
+                        kubectl apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
+                        kubectl set image deployment/api-gateway api-gateway=${ECR_REGISTRY}/ecommerce/api-gateway:${params.IMAGE_TAG} -n ${K8S_NAMESPACE}
+                        kubectl rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
+                    """
+                    
+                    // Wait for deployment with retries
+                    def ready = false
+                    def retryCount = 0
+                    
+                    while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
+                        try {
+                            sh """
+                                kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                                # Verify API Gateway registration
+                                echo "Verifying API Gateway registration with Eureka..."
+                                kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s --retry 5 --retry-delay 10 http://localhost:8761/eureka/apps/API-GATEWAY | grep "status"
+                            """
+                            ready = true
+                        } catch (Exception e) {
+                            retryCount++
+                            echo "Attempt ${retryCount}/${env.MAX_RETRY_COUNT} failed for api-gateway. Retrying..."
+                            if (retryCount >= env.MAX_RETRY_COUNT.toInteger()) {
+                                error "Failed to deploy api-gateway after ${env.MAX_RETRY_COUNT} attempts"
+                            }
+                            sleep 30
                         }
                     }
                 }

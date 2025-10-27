@@ -10,9 +10,6 @@ spring:
     import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://localhost:9296}
   application:
     name: PROXY-CLIENT
-  profiles:
-    active:
-    - dev
 
 resilience4j:
   circuitbreaker:
@@ -35,11 +32,4 @@ management:
   endpoint:
     health:
       show-details: always
-
-
-
-
-
-
-
 
