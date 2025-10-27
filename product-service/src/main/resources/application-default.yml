@@ -9,7 +9,7 @@ management:
 
 spring:
   datasource:
-    url: jdbc:h2:mem:ecommerce_dev_db;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:product_service_db;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password: 
   jpa:
