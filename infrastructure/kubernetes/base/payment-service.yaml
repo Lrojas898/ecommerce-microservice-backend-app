@@ -8,7 +8,7 @@ spec:
   type: ClusterIP
   ports:
     - port: 8084
-      targetPort: 8084
+      targetPort: 8400
       protocol: TCP
       name: http
   selector:
@@ -34,7 +34,7 @@ spec:
       - name: payment-service
         image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/payment-service:latest
         ports:
-        - containerPort: 8084
+        - containerPort: 8400
           name: http
         env:
         - name: SPRING_PROFILES_ACTIVE
@@ -59,7 +59,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /payment-service/actuator/health
-            port: 8084
+            port: 8400
           initialDelaySeconds: 120
           periodSeconds: 10
 #        readinessProbe:
