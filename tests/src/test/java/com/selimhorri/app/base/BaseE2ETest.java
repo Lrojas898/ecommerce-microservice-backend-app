@@ -25,28 +25,39 @@ public abstract class BaseE2ETest {
     
     private static final ServiceHealthCheck healthCheck = new ServiceHealthCheck(restTemplate);
 
+    protected static final String API_URL = System.getProperty("test.base.url", 
+            "http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com");
+
     @BeforeAll
     public static void waitForServices() {
-        // Wait for core infrastructure services first
+        // Wait for API Gateway health check
         await().atMost(2, TimeUnit.MINUTES)
                .pollInterval(Duration.ofSeconds(5))
-               .until(() -> healthCheck.waitForService("http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com/eureka"));
+               .until(() -> healthCheck.waitForService(API_URL + "/actuator/health"));
 
-        await().atMost(2, TimeUnit.MINUTES)
-               .pollInterval(Duration.ofSeconds(5))
-               .until(() -> healthCheck.waitForService("http://cloud-config:8888"));
-
-        // Then wait for business services
-        String[] services = {
-            "http://user-service:8100",
-            "http://product-service:8200",
-            "http://order-service:8300",
-            "http://payment-service:8400",
-            "http://shipping-service:8500"
+        // Then check each service through the API Gateway
+        String[] endpoints = {
+            "/user-service/actuator/health",
+            "/product-service/actuator/health",
+            "/order-service/actuator/health",
+            "/payment-service/actuator/health",
+            "/shipping-service/actuator/health"
         };
 
-        await().atMost(5, TimeUnit.MINUTES)
-               .pollInterval(Duration.ofSeconds(10))
-               .until(() -> healthCheck.waitForAllServices(services));
+        for (String endpoint : endpoints) {
+            await().atMost(2, TimeUnit.MINUTES)
+                   .pollInterval(Duration.ofSeconds(5))
+                   .until(() -> healthCheck.waitForService(API_URL + endpoint));
+        }
+    }
+
+    protected String createAuthToken() {
+        // TODO: Implement authentication token generation
+        return "test-token";
+    }
+
+    protected void cleanupTestData() {
+        // TODO: Implement test data cleanup
+    }
     }
 }

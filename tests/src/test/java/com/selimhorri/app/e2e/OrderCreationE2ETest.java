@@ -3,11 +3,11 @@ package com.selimhorri.app.e2e;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.TestInstance.Lifecycle;
+import org.springframework.boot.test.context.SpringBootTest;
 
+import com.selimhorri.app.base.BaseE2ETest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 
@@ -27,14 +27,13 @@ import io.restassured.http.ContentType;
  * - User authenticated
  * - Products available in catalog
  */
-@TestInstance(Lifecycle.PER_CLASS)
-class OrderCreationE2ETest {
+@SpringBootTest
+class OrderCreationE2ETest extends BaseE2ETest {
 
-    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com");
-
-    @BeforeAll
+    @BeforeEach
     void setup() {
-        RestAssured.baseURI = BASE_URL;
+        RestAssured.baseURI = System.getProperty("test.base.url");
+        RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
     }
 
     @Test
