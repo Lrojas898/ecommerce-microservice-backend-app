@@ -10,9 +10,6 @@ spring:
     import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://localhost:9296}
   application:
     name: API-GATEWAY
-  profiles:
-    active:
-    - dev
   cloud:
     gateway:
       default-filters:

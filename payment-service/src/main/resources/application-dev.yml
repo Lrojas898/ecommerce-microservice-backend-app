@@ -30,6 +30,11 @@ spring:
     baseline-on-migrate: true
     enabled: true
 
+eureka:
+  instance:
+    port: 8400
+    non-secure-port: 8400
+
 logging:
   level:
     org:

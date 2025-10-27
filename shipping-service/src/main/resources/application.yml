@@ -11,9 +11,6 @@ spring:
     import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://localhost:9296}
   application:
     name: SHIPPING-SERVICE
-  profiles:
-    active:
-    - dev
 
 resilience4j:
   circuitbreaker:
