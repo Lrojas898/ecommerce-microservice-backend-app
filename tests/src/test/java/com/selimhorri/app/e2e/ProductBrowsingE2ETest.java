@@ -40,13 +40,13 @@ class ProductBrowsingE2ETest {
     void browseAllProducts_shouldReturnProductList() {
         given()
         .when()
-                .get("/app/api/products")
+                .get("/product-service/api/products")
         .then()
                 .statusCode(200)
-                .body("$", not(empty()))
-                .body("[0].productId", notNullValue())
-                .body("[0].productTitle", notNullValue())
-                .body("[0].priceUnit", notNullValue());
+                .body("collection", not(empty()))
+                .body("collection[0].productId", notNullValue())
+                .body("collection[0].productTitle", notNullValue())
+                .body("collection[0].priceUnit", notNullValue());
     }
 
     @Test
@@ -54,16 +54,16 @@ class ProductBrowsingE2ETest {
         // Step 1: Get first product ID
         final Integer productId = given()
         .when()
-                .get("/app/api/products")
+                .get("/product-service/api/products")
         .then()
                 .statusCode(200)
                 .extract()
-                .path("[0].productId");
+                .path("collection[0].productId");
 
         // Step 2: View product details
         given()
         .when()
-                .get("/app/api/products/" + productId)
+                .get("/product-service/api/products/" + productId)
         .then()
                 .statusCode(200)
                 .body("productId", equalTo(productId))
@@ -78,25 +78,25 @@ class ProductBrowsingE2ETest {
         // Step 1: Get all categories
         given()
         .when()
-                .get("/app/api/categories")
+                .get("/product-service/api/categories")
         .then()
                 .statusCode(200)
-                .body("$", not(empty()));
+                .body("collection", not(empty()));
 
         // Step 2: Get category ID
         final Integer categoryId = given()
         .when()
-                .get("/app/api/categories")
+                .get("/product-service/api/categories")
         .then()
                 .statusCode(200)
                 .extract()
-                .path("[0].categoryId");
+                .path("collection[0].categoryId");
 
         // Step 3: Get products by category
         given()
                 .queryParam("categoryId", categoryId)
         .when()
-                .get("/app/api/products/search")
+                .get("/product-service/api/products/search")
         .then()
                 .statusCode(anyOf(is(200), is(404)))  // 404 if no products in category
                 .body("$", anyOf(empty(), not(empty())));
@@ -119,7 +119,7 @@ class ProductBrowsingE2ETest {
                 .contentType("application/json")
                 .body(favouritePayload)
         .when()
-                .post("/app/api/favourites")
+                .post("/favourite-service/api/favourites")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("userId", equalTo(userId))
@@ -133,7 +133,7 @@ class ProductBrowsingE2ETest {
 
         given()
         .when()
-                .get("/app/api/favourites/user/" + userId)
+                .get("/favourite-service/api/favourites/user/" + userId)
         .then()
                 .statusCode(anyOf(is(200), is(404)))
                 .body("$", anyOf(empty(), not(empty())));
