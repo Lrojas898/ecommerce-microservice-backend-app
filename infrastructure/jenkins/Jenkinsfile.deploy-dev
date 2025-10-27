@@ -1,13 +1,16 @@
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag to deploy')
+    }
+
     environment {
         AWS_REGION = 'us-east-2'
         AWS_ACCOUNT_ID = '020951019497'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         K8S_CLUSTER = 'ecommerce-microservices-cluster'
         K8S_NAMESPACE = 'dev'
-        IMAGE_TAG = 'latest'
         ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
     }
 
@@ -73,7 +76,7 @@ pipeline {
 
                         sh """
                             kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} || true
-                            kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} -n ${K8S_NAMESPACE} || true
+                            kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG} -n ${K8S_NAMESPACE} || true
                             kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE} || true
                             kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || true
                         """
@@ -175,7 +178,7 @@ pipeline {
         success {
             script {
                 echo "DEV DEPLOYMENT SUCCESS: ${env.ALL_SERVICES}"
-                echo "Image tag: ${IMAGE_TAG}"
+                echo "Image tag: ${params.IMAGE_TAG}"
                 echo "Namespace: ${K8S_NAMESPACE}"
                 echo "Cluster: ${K8S_CLUSTER}"
             }
