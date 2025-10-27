@@ -1,6 +1,6 @@
 
 server:
-  port: 8800
+  port: 8086
 
 management:
   endpoints:
