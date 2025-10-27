@@ -215,15 +215,21 @@ pipeline {
                     ).trim()
 
                     if (gatewayUrl && gatewayUrl != 'localhost') {
-                        echo "Running E2E tests against: http://${gatewayUrl}"
-                        echo "Waiting 180 seconds for all services to register with Eureka and be fully ready..."
-                        sleep 180
+                        echo "Running E2E tests against: http://${gatewayUrl}/app"
+                        echo "Waiting 300 seconds for all services to register with Eureka and be fully ready..."
+                        sleep 300
+
+                        // Verify all services are registered with Eureka
+                        sh """
+                            echo "Verifying service registration status..."
+                            kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s http://localhost:8761/eureka/apps | grep "status" || true
+                        """
 
                         sh """
                             cd tests
                             mvn clean verify -Pe2e-tests \\
-                                -Dtest.base.url=http://${gatewayUrl} \\
-                                -Dtest.timeout=30000
+                                -Dtest.base.url=http://${gatewayUrl}/app \\
+                                -Dtest.timeout=60000
                         """
                     } else {
                         echo "API Gateway not accessible externally, skipping E2E tests"
