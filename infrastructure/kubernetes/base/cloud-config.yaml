@@ -58,13 +58,38 @@ spec:
           httpGet:
             path: /actuator/health
             port: 9296
-          initialDelaySeconds: 90
+          initialDelaySeconds: 180
           periodSeconds: 10
           failureThreshold: 5
-#        readinessProbe:
-#          httpGet:
-#            path: /actuator/health
-#            port: 9296
-#          initialDelaySeconds: 60
-#          periodSeconds: 5
-#          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 9296
+          initialDelaySeconds: 120
+          periodSeconds: 5
+          failureThreshold: 3
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "default"
+        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+          value: "http://service-discovery:8761/eureka/"
+        - name: EUREKA_CLIENT_ENABLED
+          value: "true"
+        - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
+          value: "true"
+        - name: EUREKA_CLIENT_FETCH_REGISTRY
+          value: "true"
+        - name: EUREKA_INSTANCE_PREFER-IP-ADDRESS
+          value: "true"
+        - name: EUREKA_INSTANCE_LEASE-RENEWAL-INTERVAL-IN-SECONDS
+          value: "10"
+        - name: EUREKA_INSTANCE_LEASE-EXPIRATION-DURATION-IN-SECONDS
+          value: "30"
+        - name: EUREKA_CLIENT_REGISTRY-FETCH-INTERVAL-SECONDS
+          value: "5"
+        - name: EUREKA_CLIENT_INITIAL-INSTANCE-INFO-REPLICATION-INTERVAL-SECONDS
+          value: "15"
+        - name: EUREKA_CLIENT_INSTANCE-INFO-REPLICATION-INTERVAL-SECONDS
+          value: "10"
+        - name: EUREKA_CLIENT_EUREKA-SERVICE-URL-POLL-INTERVAL-SECONDS
+          value: "5"
