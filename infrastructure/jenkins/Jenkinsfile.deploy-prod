@@ -5,6 +5,11 @@ pipeline {
         string(name: 'SERVICE_VERSIONS', defaultValue: '{}', description: 'JSON string containing service-specific versions')
         string(name: 'CHANGED_SERVICES', defaultValue: 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway', description: 'Services to deploy')
     }
+    
+    // Allow JsonSlurper in Jenkins sandbox
+    options {
+        skipDefaultCheckout(true)
+    }
 
     environment {
         AWS_REGION = 'us-east-2'

@@ -31,55 +31,46 @@ spec:
         app: service-discovery
     spec:
       containers:
-      - name: service-discovery
-        image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/service-discovery:latest
-        ports:
-        - containerPort: 8761
-          name: http
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: "default"
-        - name: SERVER_PORT
-          value: "8761"
-        - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
-          value: "false"
-        - name: EUREKA_CLIENT_FETCH_REGISTRY
-          value: "false"
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "200m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8761
-          initialDelaySeconds: 120
-          periodSeconds: 10
-          failureThreshold: 5
-        readinessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8761
-          initialDelaySeconds: 90
-          periodSeconds: 5
-          failureThreshold: 3
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: "default"
-        - name: SERVER_PORT
-          value: "8761"
-        - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
-          value: "false"
-        - name: EUREKA_CLIENT_FETCH_REGISTRY
-          value: "false"
-        - name: EUREKA_INSTANCE_LEASE-RENEWAL-INTERVAL-IN-SECONDS
-          value: "10"
-        - name: EUREKA_INSTANCE_LEASE-EXPIRATION-DURATION-IN-SECONDS
-          value: "30"
-        - name: EUREKA_SERVER_ENABLE-SELF-PRESERVATION
-          value: "false"
-        - name: EUREKA_SERVER_RENEWAL-PERCENT-THRESHOLD
-          value: "0.49"
+        - name: service-discovery
+          image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/service-discovery:latest
+          ports:
+            - containerPort: 8761
+              name: http
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "default"
+            - name: SERVER_PORT
+              value: "8761"
+            - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
+              value: "false"
+            - name: EUREKA_CLIENT_FETCH_REGISTRY
+              value: "false"
+            - name: EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS
+              value: "10"
+            - name: EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS
+              value: "30"
+            - name: EUREKA_SERVER_ENABLE_SELF_PRESERVATION
+              value: "false"
+            - name: EUREKA_SERVER_RENEWAL_PERCENT_THRESHOLD
+              value: "0.49"
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 120
+            periodSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 90
+            periodSeconds: 5
+            failureThreshold: 3
