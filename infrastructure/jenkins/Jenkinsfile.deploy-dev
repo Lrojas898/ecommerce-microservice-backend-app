@@ -11,7 +11,7 @@ pipeline {
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         K8S_CLUSTER = 'ecommerce-microservices-cluster'
         K8S_NAMESPACE = 'dev'
-        ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
+        ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,proxy-client,api-gateway'
         MAX_RETRY_COUNT = '5'
         SERVICE_READINESS_TIMEOUT = '900'
     }
@@ -48,15 +48,18 @@ pipeline {
                     services.each { service ->
                         sh """
                             set -e
-                            echo "Cleaning up old replica sets for ${service}..."
-                            OLD_RS=\$(kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name | head -n -1)
-                            if [ ! -z "\$OLD_RS" ]; then
-                                for rs in \$OLD_RS; do
-                                    kubectl scale \$rs -n ${K8S_NAMESPACE} --replicas=0 || true
-                                done
-                            fi
+                            echo "Pre-deployment cleanup for ${service}..."
                             
-                            # Ensure only one replica is running
+                            # Delete old replica sets with 0 replicas
+                            kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} -o name | while read rs; do
+                                DESIRED=\$(kubectl get \$rs -n ${K8S_NAMESPACE} -o jsonpath='{.spec.replicas}')
+                                if [ "\$DESIRED" = "0" ]; then
+                                    echo "Deleting old replica set: \$rs"
+                                    kubectl delete \$rs -n ${K8S_NAMESPACE} || true
+                                fi
+                            done
+                            
+                            # Ensure deployment exists and has exactly 1 replica
                             kubectl scale deployment/${service} -n ${K8S_NAMESPACE} --replicas=1 || echo "Deployment ${service} not found, will be created"
                         """
                     }
@@ -215,7 +218,8 @@ pipeline {
                     
                     # Check for multiple pods per service and clean up if necessary
                     echo "Checking for multiple pods per service..."
-                    for service in service-discovery cloud-config user-service product-service order-service payment-service shipping-service favourite-service api-gateway; do
+                    IFS=',' read -ra SERVICES <<< "${ALL_SERVICES}"
+                    for service in "\${SERVICES[@]}"; do
                         pod_count=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers | wc -l)
                         if [ \$pod_count -gt 1 ]; then
                             echo "WARNING: Multiple pods found for \$service (\$pod_count pods)"
@@ -227,6 +231,54 @@ pipeline {
                     echo "Final pod status:"
                     kubectl get pods -n ${K8S_NAMESPACE}
                 """
+            }
+        }
+
+        stage('Post-Deployment Cleanup') {
+            steps {
+                script {
+                    def services = env.ALL_SERVICES.split(',')
+                    services.each { service ->
+                        sh """
+                            set -e
+                            echo "Post-deployment cleanup for ${service}..."
+                            
+                            # Get all replica sets for this service, sorted by creation time (oldest first)
+                            OLD_RS=\$(kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name | head -n -1)
+                            
+                            if [ ! -z "\$OLD_RS" ]; then
+                                echo "Cleaning up old replica sets for ${service}:"
+                                for rs in \$OLD_RS; do
+                                    DESIRED=\$(kubectl get \$rs -n ${K8S_NAMESPACE} -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+                                    CURRENT=\$(kubectl get \$rs -n ${K8S_NAMESPACE} -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
+                                    echo "  Replica set \$rs - Desired: \$DESIRED, Current: \$CURRENT"
+                                    
+                                    # Scale down and delete old replica sets
+                                    if [ "\$DESIRED" = "0" ] || [ "\$CURRENT" = "0" ]; then
+                                        echo "  Deleting old replica set: \$rs"
+                                        kubectl delete \$rs -n ${K8S_NAMESPACE} --ignore-not-found=true || true
+                                    fi
+                                done
+                            fi
+                            
+                            # Ensure deployment has exactly 1 replica running
+                            CURRENT_REPLICAS=\$(kubectl get deployment ${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+                            if [ "\$CURRENT_REPLICAS" != "1" ]; then
+                                echo "Warning: ${service} has \$CURRENT_REPLICAS ready replicas, expected 1"
+                            fi
+                        """
+                    }
+                    
+                    // Final cleanup summary
+                    sh """
+                        echo "=== Final Cluster State ==="
+                        echo "Active pods:"
+                        kubectl get pods -n ${K8S_NAMESPACE}
+                        echo ""
+                        echo "Active replica sets:"
+                        kubectl get rs -n ${K8S_NAMESPACE} | grep -v "0         0         0"
+                    """
+                }
             }
         }
 
