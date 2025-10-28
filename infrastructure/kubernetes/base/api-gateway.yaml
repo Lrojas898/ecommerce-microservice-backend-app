@@ -35,7 +35,7 @@ spec:
           image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/api-gateway:latest
           ports:
             - containerPort: 80
-              name: http
+              name: api-http
           env:
             - name: SERVER_PORT
               value: "80"
