@@ -1,22 +1,16 @@
 package com.selimhorri.app.e2e;
 
-import static orgghamcrestaMatchersfanyOf
-import static org.hamcrest.Matchers.emptympty;
-import static org.hamcrest.Matchers.equalTo;import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.*;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import static io.restassured.RestAssured.given;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
 import io.restassured.RestAssured;
-import static io.restassured.RestAssured.given;
+
+
 
 /**
  * End-to-End test for Product Browsing and Search Flow
