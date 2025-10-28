@@ -62,7 +62,13 @@ pipeline {
                 script {
                     // Deploy and verify core infrastructure services first
                     def infraServices = ['service-discovery', 'cloud-config']
-                    def serviceVersions = readJSON text: params.SERVICE_VERSIONS
+                    def serviceVersions
+                    try {
+                        serviceVersions = readJSON text: params.SERVICE_VERSIONS
+                    } catch (Exception e) {
+                        echo "Warning: Failed to parse SERVICE_VERSIONS JSON. Using latest for all services."
+                        serviceVersions = [:]
+                    }
                     
                     infraServices.each { service ->
                         echo "Deploying ${service}..."
@@ -126,7 +132,12 @@ pipeline {
                     microservices.each { service ->
                         echo "Deploying ${service}..."
                         
-                        def version = serviceVersions[service] ?: 'latest'
+                        def version = 'latest'
+                        try {
+                            version = serviceVersions[service] ?: 'latest'
+                        } catch (Exception e) {
+                            echo "Warning: Could not get version for ${service}, using latest"
+                        }
                         sh """
                             kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                             kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${version} -n ${K8S_NAMESPACE}
