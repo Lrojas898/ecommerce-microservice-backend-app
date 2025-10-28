@@ -26,14 +26,9 @@ pipeline {
         stage('Configure kubectl') {
             steps {
                 sh """
-                    set +e
+                    set -e
                     aws eks update-kubeconfig --region ${AWS_REGION} --name ${K8S_CLUSTER}
                     kubectl config set-context --current --namespace=${K8S_NAMESPACE}
-                    exit_code=\$?
-                    if [ \$exit_code -ne 0 ]; then
-                        echo "Failed to configure kubectl"
-                        exit \$exit_code
-                    fi
                 """
             }
         }
@@ -41,7 +36,6 @@ pipeline {
         stage('Create Namespace') {
             steps {
                 sh """
-                    set +e
                     kubectl get namespace ${K8S_NAMESPACE} || kubectl create namespace ${K8S_NAMESPACE}
                 """
             }
@@ -53,7 +47,7 @@ pipeline {
                     def services = env.ALL_SERVICES.split(',')
                     services.each { service ->
                         sh """
-                            set +e
+                            set -e
                             OLD_RS=\$(kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name | head -n -1)
                             if [ ! -z "\$OLD_RS" ]; then
                                 for rs in \$OLD_RS; do
@@ -80,55 +74,37 @@ pipeline {
 
                     infraServices.each { service ->
                         def version = serviceVersions[service] ?: 'latest'
-
-                        sh """
-                            set +e
+                        sh label: "Deploy ${service}", script: """
+                            set -e
                             kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                             kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${version} -n ${K8S_NAMESPACE}
                             kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-                            exit_code=\$?
-                            if [ \$exit_code -ne 0 ]; then
-                                echo "Deployment commands failed for ${service}"
-                                exit \$exit_code
+                            kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+
+                            if [ "${service}" = "service-discovery" ]; then
+                                sleep 60
+                                retries=0
+                                until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                                    sleep 30
+                                    retries=\$((retries + 1))
+                                done
+                                if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
+                                    echo "Eureka health check failed after \${MAX_RETRY_COUNT} attempts"
+                                    exit 1
+                                fi
+                            elif [ "${service}" = "cloud-config" ]; then
+                                sleep 45
+                                retries=0
+                                until kubectl exec -n ${K8S_NAMESPACE} deploy/cloud-config -- curl -sf http://localhost:9296/actuator/health || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                                    sleep 30
+                                    retries=\$((retries + 1))
+                                done
+                                if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
+                                    echo "Config Server health check failed after \${MAX_RETRY_COUNT} attempts"
+                                    exit 1
+                                fi
                             fi
                         """
-
-                        def ready = false
-                        def retryCount = 0
-
-                        while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
-                            try {
-                                sh """
-                                    set +e
-                                    kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
-                                    rollout_exit=\$?
-                                    if [ \$rollout_exit -ne 0 ]; then
-                                        echo "Rollout failed for ${service}"
-                                        exit \$rollout_exit
-                                    fi
-
-                                    if [ "${service}" = "service-discovery" ]; then
-                                        sleep 60
-                                        kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps
-                                    elif [ "${service}" = "cloud-config" ]; then
-                                        sleep 45
-                                        kubectl exec -n ${K8S_NAMESPACE} deploy/cloud-config -- curl -sf http://localhost:9296/actuator/health
-                                    fi
-                                    exit_code=\$?
-                                    if [ \$exit_code -ne 0 ]; then
-                                        echo "Health check failed for ${service}"
-                                        exit \$exit_code
-                                    fi
-                                """
-                                ready = true
-                            } catch (Exception e) {
-                                retryCount++
-                                if (retryCount >= env.MAX_RETRY_COUNT.toInteger()) {
-                                    error "Failed to deploy ${service} after ${env.MAX_RETRY_COUNT} attempts"
-                                }
-                                sleep 30
-                            }
-                        }
                     }
                 }
             }
@@ -153,49 +129,23 @@ pipeline {
                         } catch (Exception e) {
                             echo "Warning: Could not get version for ${service}, using latest"
                         }
-
-                        sh """
-                            set +e
+                        sh label: "Deploy ${service}", script: """
+                            set -e
                             kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                             kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${version} -n ${K8S_NAMESPACE}
                             kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-                            exit_code=\$?
-                            if [ \$exit_code -ne 0 ]; then
-                                echo "Deployment commands failed for ${service}"
-                                exit \$exit_code
+                            kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+
+                            retries=0
+                            until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/${service.toUpperCase()} | grep -q "status" || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                                sleep 30
+                                retries=\$((retries + 1))
+                            done
+                            if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
+                                echo "Eureka registration check failed for ${service} after \${MAX_RETRY_COUNT} attempts"
+                                exit 1
                             fi
                         """
-
-                        def ready = false
-                        def retryCount = 0
-
-                        while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
-                            try {
-                                sh """
-                                    set +e
-                                    kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
-                                    rollout_exit=\$?
-                                    if [ \$rollout_exit -ne 0 ]; then
-                                        echo "Rollout failed for ${service}"
-                                        exit \$rollout_exit
-                                    fi
-
-                                    kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/${service.toUpperCase()} | grep "status"
-                                    exit_code=\$?
-                                    if [ \$exit_code -ne 0 ]; then
-                                        echo "Eureka registration check failed for ${service}"
-                                        exit \$exit_code
-                                    fi
-                                """
-                                ready = true
-                            } catch (Exception e) {
-                                retryCount++
-                                if (retryCount >= env.MAX_RETRY_COUNT.toInteger()) {
-                                    error "Failed to deploy ${service} after ${env.MAX_RETRY_COUNT} attempts"
-                                }
-                                sleep 30
-                            }
-                        }
                     }
                 }
             }
@@ -205,48 +155,23 @@ pipeline {
             steps {
                 script {
                     def version = serviceVersions['api-gateway'] ?: 'latest'
-                    sh """
-                        set +e
+                    sh label: "Deploy api-gateway", script: """
+                        set -e
                         kubectl apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
                         kubectl set image deployment/api-gateway api-gateway=${ECR_REGISTRY}/ecommerce/api-gateway:${version} -n ${K8S_NAMESPACE}
                         kubectl rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
-                        exit_code=\$?
-                        if [ \$exit_code -ne 0 ]; then
-                            echo "Deployment commands failed for api-gateway"
-                            exit \$exit_code
+                        kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+
+                        retries=0
+                        until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/API-GATEWAY | grep -q "status" || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                            sleep 30
+                            retries=\$((retries + 1))
+                        done
+                        if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
+                            echo "Eureka registration check failed for api-gateway after \${MAX_RETRY_COUNT} attempts"
+                            exit 1
                         fi
                     """
-
-                    def ready = false
-                    def retryCount = 0
-
-                    while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
-                        try {
-                            sh """
-                                set +e
-                                kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
-                                rollout_exit=\$?
-                                if [ \$rollout_exit -ne 0 ]; then
-                                    echo "Rollout failed for api-gateway"
-                                    exit \$rollout_exit
-                                fi
-
-                                kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/API-GATEWAY | grep "status"
-                                exit_code=\$?
-                                if [ \$exit_code -ne 0 ]; then
-                                    echo "Eureka registration check failed for api-gateway"
-                                    exit \$exit_code
-                                fi
-                            """
-                            ready = true
-                        } catch (Exception e) {
-                            retryCount++
-                            if (retryCount >= env.MAX_RETRY_COUNT.toInteger()) {
-                                error "Failed to deploy api-gateway after ${env.MAX_RETRY_COUNT} attempts"
-                            }
-                            sleep 30
-                        }
-                    }
                 }
             }
         }
@@ -254,7 +179,6 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 sh """
-                    set +e
                     kubectl get pods -n ${K8S_NAMESPACE}
                     kubectl get svc -n ${K8S_NAMESPACE}
                 """
@@ -270,19 +194,13 @@ pipeline {
                     ).trim()
 
                     if (gatewayUrl && gatewayUrl != 'localhost') {
-                        sleep 300
-
                         sh """
-                            set +e
+                            set -e
+                            sleep 300
                             cd tests
                             mvn clean verify -Pe2e-tests \\
                                 -Dtest.base.url=http://${gatewayUrl}/app \\
                                 -Dtest.timeout=60000
-                            exit_code=\$?
-                            if [ \$exit_code -ne 0 ]; then
-                                echo "E2E tests failed"
-                                exit \$exit_code
-                            fi
                         """
                     }
                 }
@@ -304,12 +222,11 @@ pipeline {
 
                     if (gatewayUrl) {
                         sh """
-                            set +e
                             cd tests/performance
                             python3 -m pip install locust --quiet || true
                             locust -f locustfile.py --host=http://${gatewayUrl} \\
                                    --users 10 --spawn-rate 2 --run-time 60s --headless \\
-                                   --html reports/performance_report.html
+                                   --html reports/performance_report.html || true
                         """
                     }
                 }
