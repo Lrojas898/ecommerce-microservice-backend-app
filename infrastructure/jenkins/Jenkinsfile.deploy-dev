@@ -13,7 +13,7 @@ pipeline {
         K8S_NAMESPACE = 'dev'
         ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
         MAX_RETRY_COUNT = '3'
-        SERVICE_READINESS_TIMEOUT = '300'
+        SERVICE_READINESS_TIMEOUT = '600'
     }
 
     stages {
