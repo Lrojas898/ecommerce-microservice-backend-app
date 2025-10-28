@@ -40,10 +40,17 @@ management:
     health:
       show-details: always
 
-
-
-
-
-
-
-
+eureka:
+  instance:
+    lease-renewal-interval-in-seconds: ${EUREKA_INSTANCE_LEASE-RENEWAL-INTERVAL-IN-SECONDS:5}
+    lease-expiration-duration-in-seconds: ${EUREKA_INSTANCE_LEASE-EXPIRATION-DURATION-IN-SECONDS:15}
+    prefer-ip-address: ${EUREKA_INSTANCE_PREFER-IP-ADDRESS:true}
+  client:
+    registry-fetch-interval-seconds: ${EUREKA_CLIENT_REGISTRY-FETCH-INTERVAL-SECONDS:5}
+    initial-instance-info-replication-interval-seconds: ${EUREKA_CLIENT_INITIAL-INSTANCE-INFO-REPLICATION-INTERVAL-SECONDS:10}
+    instance-info-replication-interval-seconds: ${EUREKA_CLIENT_INSTANCE-INFO-REPLICATION-INTERVAL-SECONDS:10}
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    register-with-eureka: ${EUREKA_CLIENT_REGISTER_WITH_EUREKA:true}
+    fetch-registry: ${EUREKA_CLIENT_FETCH_REGISTRY:true}
+    serviceUrl:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
