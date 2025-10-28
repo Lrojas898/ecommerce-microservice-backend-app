@@ -24,7 +24,6 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
         SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
         AWS_DEFAULT_REGION = "${AWS_REGION}"
-        SERVICE_VERSIONS = [:]
     }
 
     stages {
@@ -107,10 +106,11 @@ favourite-service/"
                     echo "Services to build: ${env.CHANGED_SERVICES}"
                     
                     // Initialize service versions
+                    def serviceVersions = [:]
                     def servicesArray = env.SERVICES.split(',')
                     servicesArray.each { service ->
                         if (changedServices.contains(service)) {
-                            env.SERVICE_VERSIONS[service] = env.IMAGE_TAG
+                            serviceVersions[service] = env.IMAGE_TAG
                         } else {
                             // Get current version from ECR for unchanged services
                             def currentVersion = sh(
@@ -119,10 +119,11 @@ favourite-service/"
                                 """,
                                 returnStdout: true
                             ).trim()
-                            env.SERVICE_VERSIONS[service] = currentVersion
+                            serviceVersions[service] = currentVersion
                         }
                     }
-                    echo "Service versions: ${env.SERVICE_VERSIONS}"
+                    env.SERVICE_VERSIONS_JSON = groovy.json.JsonOutput.toJson(serviceVersions)
+                    echo "Service versions: ${env.SERVICE_VERSIONS_JSON}"
                 }
             }
         }
@@ -389,11 +390,9 @@ favourite-service/"
         stage('Trigger DEV Deploy') {
             steps {
                 script {
-                    // Convert SERVICE_VERSIONS map to JSON string
-                    def serviceVersionsJson = groovy.json.JsonOutput.toJson(env.SERVICE_VERSIONS)
                     build job: 'ecommerce-deploy-dev', 
                           parameters: [
-                              string(name: 'SERVICE_VERSIONS', value: serviceVersionsJson)
+                              string(name: 'SERVICE_VERSIONS', value: env.SERVICE_VERSIONS_JSON)
                           ],
                           wait: false
                 }

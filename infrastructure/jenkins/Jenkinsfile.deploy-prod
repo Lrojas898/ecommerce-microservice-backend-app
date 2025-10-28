@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag to deploy')
+        string(name: 'SERVICE_VERSIONS', defaultValue: '{}', description: 'JSON string containing service-specific versions')
         string(name: 'CHANGED_SERVICES', defaultValue: 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway', description: 'Services to deploy')
     }
 
@@ -38,19 +38,27 @@ pipeline {
                 script {
                     def changedServices = params.CHANGED_SERVICES.split(',')
 
+                    def serviceVersions = readJSON text: params.SERVICE_VERSIONS
                     sh """
                         cat > RELEASE_NOTES_v${VERSION}.md << 'NOTES'
 # Release v${VERSION}
 
 **Date:** ${new Date().format('yyyy-MM-dd HH:mm:ss')}
 **Build:** #${BUILD_NUMBER}
-**Image Tag:** ${params.IMAGE_TAG}
 **Services Updated:** ${params.CHANGED_SERVICES}
 
-## Services Deployed
+## Services Deployed with Versions
 
 NOTES
                     """
+
+                    serviceVersions.each { service, version ->
+                        sh """
+                            cat >> RELEASE_NOTES_v${VERSION}.md << NOTES
+- ${service}: ${version}
+NOTES
+                        """
+                    }
 
                     changedServices.each { service ->
                         sh """
@@ -127,7 +135,7 @@ NOTES
                         Deploy v${VERSION} to PRODUCTION?
 
                         Services: ${params.CHANGED_SERVICES}
-                        Image Tag: ${params.IMAGE_TAG}
+                        Service Versions: ${params.SERVICE_VERSIONS}
 
                         Review the release notes and confirm deployment.
                         """,
@@ -180,13 +188,16 @@ NOTES
                         'api-gateway'
                     ]
 
+                    def serviceVersions = readJSON text: params.SERVICE_VERSIONS
+                    
                     deploymentOrder.each { service ->
                         if (services.contains(service)) {
-                            echo "Deploying ${service} to PRODUCTION..."
+                            def version = serviceVersions[service] ?: 'latest'
+                            echo "Deploying ${service} to PRODUCTION with version ${version}..."
 
                             sh """
                                 kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} || true
-                                kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${params.IMAGE_TAG} -n ${K8S_NAMESPACE} || true
+                                kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${version} -n ${K8S_NAMESPACE} || true
                                 kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE} || true
                                 kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=5m || true
                             """
