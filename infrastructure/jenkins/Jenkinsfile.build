@@ -24,6 +24,7 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
         SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
         AWS_DEFAULT_REGION = "${AWS_REGION}"
+        SERVICE_VERSIONS = [:]
     }
 
     stages {
@@ -104,6 +105,24 @@ favourite-service/"
 
                     env.CHANGED_SERVICES = changedServices.join(',')
                     echo "Services to build: ${env.CHANGED_SERVICES}"
+                    
+                    // Initialize service versions
+                    def servicesArray = env.SERVICES.split(',')
+                    servicesArray.each { service ->
+                        if (changedServices.contains(service)) {
+                            env.SERVICE_VERSIONS[service] = env.IMAGE_TAG
+                        } else {
+                            // Get current version from ECR for unchanged services
+                            def currentVersion = sh(
+                                script: """
+                                    aws ecr describe-images --repository-name ecommerce/${service} --region ${env.AWS_REGION} --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' --output text || echo 'latest'
+                                """,
+                                returnStdout: true
+                            ).trim()
+                            env.SERVICE_VERSIONS[service] = currentVersion
+                        }
+                    }
+                    echo "Service versions: ${env.SERVICE_VERSIONS}"
                 }
             }
         }
@@ -370,8 +389,12 @@ favourite-service/"
         stage('Trigger DEV Deploy') {
             steps {
                 script {
+                    // Convert SERVICE_VERSIONS map to JSON string
+                    def serviceVersionsJson = groovy.json.JsonOutput.toJson(env.SERVICE_VERSIONS)
                     build job: 'ecommerce-deploy-dev', 
-                          parameters: [string(name: 'IMAGE_TAG', value: "${IMAGE_TAG}")],
+                          parameters: [
+                              string(name: 'SERVICE_VERSIONS', value: serviceVersionsJson)
+                          ],
                           wait: false
                 }
             }
