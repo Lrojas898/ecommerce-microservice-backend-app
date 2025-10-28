@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.*;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import com.selimhorri.app.base.BaseE2ETest;
 import io.restassured.RestAssured;
@@ -27,7 +26,6 @@ import io.restassured.http.ContentType;
  * - User authenticated
  * - Products available in catalog
  */
-@SpringBootTest
 class OrderCreationE2ETest extends BaseE2ETest {
 
     @BeforeEach
