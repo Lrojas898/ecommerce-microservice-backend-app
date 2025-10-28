@@ -4,11 +4,6 @@ pipeline {
     parameters {
         string(name: 'SERVICE_VERSIONS', defaultValue: '{}', description: 'JSON string containing service-specific versions')
     }
-    
-    // Allow JsonSlurper in Jenkins sandbox
-    options {
-        skipDefaultCheckout(true)
-    }
 
     environment {
         AWS_REGION = 'us-east-2'
@@ -22,6 +17,13 @@ pipeline {
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                // Clonamos el repositorio para acceder a los manifiestos YAML
+                checkout scm
+            }
+        }
+
         stage('Configure kubectl') {
             steps {
                 sh """
@@ -65,7 +67,6 @@ pipeline {
         stage('Deploy Infrastructure Services') {
             steps {
                 script {
-                    // Deploy and verify core infrastructure services first
                     def infraServices = ['service-discovery', 'cloud-config']
                     def serviceVersions = [:]
                     try {
@@ -75,37 +76,32 @@ pipeline {
                         echo "Warning: Failed to parse SERVICE_VERSIONS JSON. Using latest for all services."
                         echo "Error: ${e.message}"
                     }
-                    
+
                     infraServices.each { service ->
                         echo "Deploying ${service}..."
                         def version = serviceVersions[service] ?: 'latest'
-                        
+
                         sh """
                             kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                             kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${version} -n ${K8S_NAMESPACE}
                             kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
                         """
-                        
-                        // Wait for deployment to be ready with retries
+
                         def ready = false
                         def retryCount = 0
-                        
+
                         while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
                             try {
                                 sh """
                                     kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
                                     if [ "${service}" = "service-discovery" ]; then
-                                        # Wait for Eureka to be ready
                                         echo "Waiting for Eureka to be fully ready..."
                                         sleep 60
-                                        # Verify Eureka is responding
                                         kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s --retry 5 --retry-delay 10 http://localhost:8761/eureka/apps
                                     elif [ "${service}" = "cloud-config" ]; then
-                                        # Wait for Config Server
                                         echo "Waiting for Config Server to be fully ready..."
                                         sleep 45
-                                        # Verify Config Server is responding
-                                        kubectl exec -n ${K8S_NAMESPACE} deploy/cloud-config -- curl -s --retry 5 --retry-delay 10 http://localhost:8888/actuator/health
+                                        kubectl exec -n ${K8S_NAMESPACE} deploy/cloud-config -- curl -s --retry 5 --retry-delay 10 http://localhost:9296/actuator/health
                                     fi
                                 """
                                 ready = true
@@ -137,7 +133,7 @@ pipeline {
 
                     microservices.each { service ->
                         echo "Deploying ${service}..."
-                        
+
                         def version = 'latest'
                         try {
                             version = serviceVersions[service] ?: 'latest'
@@ -149,16 +145,14 @@ pipeline {
                             kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${version} -n ${K8S_NAMESPACE}
                             kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
                         """
-                        
-                        // Wait for deployment with retries
+
                         def ready = false
                         def retryCount = 0
-                        
+
                         while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
                             try {
                                 sh """
                                     kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
-                                    # Verify service registered with Eureka
                                     echo "Verifying ${service} registration with Eureka..."
                                     kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s --retry 5 --retry-delay 10 http://localhost:8761/eureka/apps/${service.toUpperCase()} | grep "status"
                                 """
@@ -181,23 +175,21 @@ pipeline {
             steps {
                 script {
                     echo "Deploying api-gateway..."
-                    
+
                     def version = serviceVersions['api-gateway'] ?: 'latest'
                     sh """
                         kubectl apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
                         kubectl set image deployment/api-gateway api-gateway=${ECR_REGISTRY}/ecommerce/api-gateway:${version} -n ${K8S_NAMESPACE}
                         kubectl rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
                     """
-                    
-                    // Wait for deployment with retries
+
                     def ready = false
                     def retryCount = 0
-                    
+
                     while (!ready && retryCount < env.MAX_RETRY_COUNT.toInteger()) {
                         try {
                             sh """
                                 kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
-                                # Verify API Gateway registration
                                 echo "Verifying API Gateway registration with Eureka..."
                                 kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s --retry 5 --retry-delay 10 http://localhost:8761/eureka/apps/API-GATEWAY | grep "status"
                             """
@@ -240,7 +232,6 @@ pipeline {
                         echo "Waiting 300 seconds for all services to register with Eureka and be fully ready..."
                         sleep 300
 
-                        // Verify all services are registered with Eureka
                         sh """
                             echo "Verifying service registration status..."
                             kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -s http://localhost:8761/eureka/apps | grep "status" || true
@@ -304,7 +295,7 @@ pipeline {
         success {
             script {
                 echo "DEV DEPLOYMENT SUCCESS: ${env.ALL_SERVICES}"
-                echo "Image tag: ${params.IMAGE_TAG}"
+                echo "Service versions: ${params.SERVICE_VERSIONS}"
                 echo "Namespace: ${K8S_NAMESPACE}"
                 echo "Cluster: ${K8S_CLUSTER}"
             }
@@ -312,7 +303,6 @@ pipeline {
         failure {
             script {
                 echo "DEV DEPLOYMENT FAILED"
-                echo "Services affected: ${env.ALL_SERVICES}"
                 echo "Attempting rollback..."
 
                 def services = env.ALL_SERVICES.split(',')
