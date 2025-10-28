@@ -1,6 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
-meta
+metadata:
   name: proxy-client
   labels:
     app: proxy-client
@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: proxy-client
   template:
-    meta
+    metadata:
       labels:
         app: proxy-client
     spec:
@@ -59,7 +59,7 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-meta
+metadata:
   name: proxy-client
   labels:
     app: proxy-client
