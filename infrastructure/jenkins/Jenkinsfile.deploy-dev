@@ -67,7 +67,8 @@ pipeline {
                     def serviceVersions = [:]
                     try {
                         def slurper = new groovy.json.JsonSlurper()
-                        serviceVersions = slurper.parseText(params.SERVICE_VERSIONS)
+                        def parsed = slurper.parseText(params.SERVICE_VERSIONS)
+                        serviceVersions = parsed.collectEntries { k, v -> [k.toString(), v.toString()] }
                     } catch (Exception e) {
                         echo "Warning: Failed to parse SERVICE_VERSIONS JSON. Using latest for all services."
                     }
@@ -122,13 +123,17 @@ pipeline {
                         'shipping-service'
                     ]
 
+                    def serviceVersions = [:]
+                    try {
+                        def slurper = new groovy.json.JsonSlurper()
+                        def parsed = slurper.parseText(params.SERVICE_VERSIONS)
+                        serviceVersions = parsed.collectEntries { k, v -> [k.toString(), v.toString()] }
+                    } catch (Exception e) {
+                        echo "Warning: Could not parse SERVICE_VERSIONS, using latest for all services"
+                    }
+
                     microservices.each { service ->
-                        def version = 'latest'
-                        try {
-                            version = serviceVersions[service] ?: 'latest'
-                        } catch (Exception e) {
-                            echo "Warning: Could not get version for ${service}, using latest"
-                        }
+                        def version = serviceVersions[service] ?: 'latest'
                         sh label: "Deploy ${service}", script: """
                             set -e
                             kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
@@ -154,6 +159,15 @@ pipeline {
         stage('Deploy API Gateway') {
             steps {
                 script {
+                    def serviceVersions = [:]
+                    try {
+                        def slurper = new groovy.json.JsonSlurper()
+                        def parsed = slurper.parseText(params.SERVICE_VERSIONS)
+                        serviceVersions = parsed.collectEntries { k, v -> [k.toString(), v.toString()] }
+                    } catch (Exception e) {
+                        echo "Warning: Could not parse SERVICE_VERSIONS, using latest for api-gateway"
+                    }
+
                     def version = serviceVersions['api-gateway'] ?: 'latest'
                     sh label: "Deploy api-gateway", script: """
                         set -e
