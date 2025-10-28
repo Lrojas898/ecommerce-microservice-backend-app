@@ -37,6 +37,8 @@ spec:
             - containerPort: 8085
               name: http
           env:
+            - name: SERVER_PORT
+              value: "8085"
             - name: SPRING_PROFILES_ACTIVE
               value: "default"
             - name: SPRING_CONFIG_IMPORT
@@ -58,13 +60,17 @@ spec:
               cpu: "500m"
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /shipping-service/actuator/health
               port: 8085
-            initialDelaySeconds: 120
-            periodSeconds: 10
+            initialDelaySeconds: 180
+            periodSeconds: 15
+            failureThreshold: 5
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /shipping-service/actuator/health
               port: 8085
-            initialDelaySeconds: 30
-            periodSeconds: 5
+            initialDelaySeconds: 240
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 10

@@ -37,6 +37,8 @@ spec:
             - containerPort: 8084
               name: http
           env:
+            - name: SERVER_PORT
+              value: "8084"
             - name: SPRING_PROFILES_ACTIVE
               value: "default"
             - name: SPRING_CONFIG_IMPORT
