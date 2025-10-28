@@ -252,8 +252,8 @@ pipeline {
                     
                     # Check for multiple pods per service and clean up if necessary
                     echo "Checking for multiple pods per service..."
-                    IFS=',' read -ra SERVICES <<< "${ALL_SERVICES}"
-                    for service in "\${SERVICES[@]}"; do
+                    SERVICES=\$(echo "${ALL_SERVICES}" | tr ',' ' ')
+                    for service in \$SERVICES; do
                         pod_count=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers | wc -l)
                         if [ \$pod_count -gt 1 ]; then
                             echo "WARNING: Multiple pods found for \$service (\$pod_count pods)"
