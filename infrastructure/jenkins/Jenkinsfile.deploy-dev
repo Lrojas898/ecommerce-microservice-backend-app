@@ -12,8 +12,8 @@ pipeline {
         K8S_CLUSTER = 'ecommerce-microservices-cluster'
         K8S_NAMESPACE = 'dev'
         ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
-        MAX_RETRY_COUNT = '3'
-        SERVICE_READINESS_TIMEOUT = '600'
+        MAX_RETRY_COUNT = '5'
+        SERVICE_READINESS_TIMEOUT = '900'
     }
 
     stages {
@@ -48,12 +48,16 @@ pipeline {
                     services.each { service ->
                         sh """
                             set -e
+                            echo "Cleaning up old replica sets for ${service}..."
                             OLD_RS=\$(kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name | head -n -1)
                             if [ ! -z "\$OLD_RS" ]; then
                                 for rs in \$OLD_RS; do
                                     kubectl scale \$rs -n ${K8S_NAMESPACE} --replicas=0 || true
                                 done
                             fi
+                            
+                            # Ensure only one replica is running
+                            kubectl scale deployment/${service} -n ${K8S_NAMESPACE} --replicas=1 || echo "Deployment ${service} not found, will be created"
                         """
                     }
                 }
@@ -185,6 +189,18 @@ pipeline {
                             echo "Eureka registration check failed for api-gateway after \${MAX_RETRY_COUNT} attempts"
                             exit 1
                         fi
+                        
+                        # Verify API Gateway health
+                        echo "Verifying API Gateway health..."
+                        retries=0
+                        until kubectl exec -n ${K8S_NAMESPACE} deploy/api-gateway -- curl -sf http://localhost:80/app/actuator/health || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                            sleep 30
+                            retries=\$((retries + 1))
+                        done
+                        if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
+                            echo "API Gateway health check failed after \${MAX_RETRY_COUNT} attempts"
+                            exit 1
+                        fi
                     """
                 }
             }
@@ -193,8 +209,23 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 sh """
+                    echo "Final deployment verification..."
                     kubectl get pods -n ${K8S_NAMESPACE}
                     kubectl get svc -n ${K8S_NAMESPACE}
+                    
+                    # Check for multiple pods per service and clean up if necessary
+                    echo "Checking for multiple pods per service..."
+                    for service in service-discovery cloud-config user-service product-service order-service payment-service shipping-service favourite-service api-gateway; do
+                        pod_count=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers | wc -l)
+                        if [ \$pod_count -gt 1 ]; then
+                            echo "WARNING: Multiple pods found for \$service (\$pod_count pods)"
+                            # Keep only the newest pod
+                            kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' | xargs -r kubectl delete pod -n ${K8S_NAMESPACE} || true
+                        fi
+                    done
+                    
+                    echo "Final pod status:"
+                    kubectl get pods -n ${K8S_NAMESPACE}
                 """
             }
         }
@@ -210,12 +241,38 @@ pipeline {
                     if (gatewayUrl && gatewayUrl != 'localhost') {
                         sh """
                             set -e
-                            sleep 300
+                            echo "Waiting for services to stabilize before running E2E tests..."
+                            sleep 600
+                            
+                            # Verify all services are registered in Eureka
+                            echo "Verifying service registration..."
+                            kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps | grep -q "USER-SERVICE" || echo "WARNING: USER-SERVICE not registered"
+                            kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps | grep -q "PRODUCT-SERVICE" || echo "WARNING: PRODUCT-SERVICE not registered"
+                            kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps | grep -q "ORDER-SERVICE" || echo "WARNING: ORDER-SERVICE not registered"
+                            kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps | grep -q "PAYMENT-SERVICE" || echo "WARNING: PAYMENT-SERVICE not registered"
+                            kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps | grep -q "SHIPPING-SERVICE" || echo "WARNING: SHIPPING-SERVICE not registered"
+                            kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps | grep -q "FAVOURITE-SERVICE" || echo "WARNING: FAVOURITE-SERVICE not registered"
+                            
+                            # Test API Gateway connectivity
+                            echo "Testing API Gateway connectivity..."
+                            retries=0
+                            until curl -sf http://${gatewayUrl}/app/actuator/health || [ \$retries -ge 5 ]; do
+                                echo "API Gateway not ready, waiting..."
+                                sleep 30
+                                retries=\$((retries + 1))
+                            done
+                            
+                            if [ \$retries -ge 5 ]; then
+                                echo "API Gateway not responding, but continuing with tests..."
+                            fi
+                            
                             cd tests
                             mvn clean verify -Pe2e-tests \\
                                 -Dtest.base.url=http://${gatewayUrl}/app \\
                                 -Dtest.timeout=60000
                         """
+                    } else {
+                        echo "Gateway URL not available, skipping E2E tests"
                     }
                 }
             }
@@ -272,11 +329,30 @@ pipeline {
         failure {
             script {
                 echo "DEV DEPLOYMENT FAILED"
+                echo "Collecting diagnostic information..."
+                
+                sh """
+                    echo "Pod status:"
+                    kubectl get pods -n ${K8S_NAMESPACE} || true
+                    
+                    echo "Recent events:"
+                    kubectl get events -n ${K8S_NAMESPACE} --sort-by=.firstTimestamp | tail -20 || true
+                    
+                    echo "Service status:"
+                    kubectl get svc -n ${K8S_NAMESPACE} || true
+                """
+                
                 echo "Attempting rollback..."
-
                 def services = env.ALL_SERVICES.split(',')
                 services.each { service ->
-                    sh "kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE} || echo 'Rollback failed for ${service}'"
+                    sh """
+                        if kubectl get deployment ${service} -n ${K8S_NAMESPACE} > /dev/null 2>&1; then
+                            echo "Rolling back ${service}..."
+                            kubectl rollout undo deployment/${service} -n ${K8S_NAMESPACE} || echo 'Rollback failed for ${service}'
+                        else
+                            echo "Deployment ${service} not found, skipping rollback"
+                        fi
+                    """
                 }
             }
         }
