@@ -163,6 +163,40 @@ pipeline {
             }
         }
 
+        stage('Deploy Proxy Client') {
+            steps {
+                script {
+                    def serviceVersions = [:]
+                    try {
+                        def slurper = new groovy.json.JsonSlurper()
+                        def parsed = slurper.parseText(params.SERVICE_VERSIONS)
+                        serviceVersions = parsed.collectEntries { k, v -> [k.toString(), v.toString()] }
+                    } catch (Exception e) {
+                        echo "Warning: Could not parse SERVICE_VERSIONS, using latest for proxy-client"
+                    }
+
+                    def version = serviceVersions['proxy-client'] ?: 'latest'
+                    sh label: "Deploy proxy-client", script: """
+                        set -e
+                        kubectl apply -f infrastructure/kubernetes/base/proxy-client.yaml -n ${K8S_NAMESPACE}
+                        kubectl set image deployment/proxy-client proxy-client=${ECR_REGISTRY}/ecommerce/proxy-client:${version} -n ${K8S_NAMESPACE}
+                        kubectl rollout restart deployment/proxy-client -n ${K8S_NAMESPACE}
+                        kubectl rollout status deployment/proxy-client -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+
+                        retries=0
+                        until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/PROXY-CLIENT | grep -q "status" || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                            sleep 30
+                            retries=\$((retries + 1))
+                        done
+                        if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
+                            echo "Eureka registration check failed for proxy-client after \${MAX_RETRY_COUNT} attempts"
+                            exit 1
+                        fi
+                    """
+                }
+            }
+        }
+
         stage('Deploy API Gateway') {
             steps {
                 script {
