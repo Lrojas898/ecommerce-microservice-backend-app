@@ -21,7 +21,7 @@ public class TestDataUtils {
                 .contentType("application/json")
                 .body(userPayload)
                 .when()
-                .post("/user-service/api/users")
+                .post("/app/api/users")
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("userId", notNullValue())
@@ -43,7 +43,7 @@ public class TestDataUtils {
                 .contentType("application/json")
                 .body(productPayload)
                 .when()
-                .post("/product-service/api/products")
+                .post("/app/api/products")
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .body("productId", notNullValue())
@@ -55,7 +55,7 @@ public class TestDataUtils {
         if (userId != null) {
             given()
                 .when()
-                .delete("/user-service/api/users/" + userId)
+                .delete("/app/api/users/" + userId)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
         }
@@ -63,7 +63,7 @@ public class TestDataUtils {
         if (productId != null) {
             given()
                 .when()
-                .delete("/product-service/api/products/" + productId)
+                .delete("/app/api/products/" + productId)
                 .then()
                 .statusCode(HttpStatus.NO_CONTENT.value());
         }
@@ -86,7 +86,7 @@ public class TestDataUtils {
                 .contentType("application/json")
                 .body(orderPayload)
                 .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
                 .then()
                 .statusCode(HttpStatus.CREATED.value())
                 .extract()

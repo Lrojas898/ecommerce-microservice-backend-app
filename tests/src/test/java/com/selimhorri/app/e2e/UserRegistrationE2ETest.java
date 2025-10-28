@@ -1,14 +1,16 @@
 package com.selimhorri.app.e2e;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
-
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
 import io.restassured.RestAssured;
+import static io.restassured.RestAssured.given;
 import io.restassured.http.ContentType;
 
 /**
@@ -29,7 +31,8 @@ import io.restassured.http.ContentType;
 @TestInstance(Lifecycle.PER_CLASS)
 class UserRegistrationE2ETest {
 
-    private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com");
+    private static final String BASE_URL = System.getProperty("test.base.url", 
+            System.getenv().getOrDefault("API_URL", "http://localhost:80"));
 
     @BeforeAll
     void setup() {

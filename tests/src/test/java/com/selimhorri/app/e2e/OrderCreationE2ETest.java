@@ -32,7 +32,8 @@ class OrderCreationE2ETest extends BaseE2ETest {
 
     @BeforeEach
     void setup() {
-        RestAssured.baseURI = System.getProperty("test.base.url");
+        RestAssured.baseURI = System.getProperty("test.base.url", 
+                System.getenv().getOrDefault("API_URL", "http://localhost:80"));
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
     }
 
@@ -48,7 +49,7 @@ class OrderCreationE2ETest extends BaseE2ETest {
                 .contentType(ContentType.JSON)
                 .body(cartPayload)
         .when()
-                .post("/order-service/api/carts")
+                .post("/app/api/carts")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("cartId", notNullValue());
@@ -61,7 +62,7 @@ class OrderCreationE2ETest extends BaseE2ETest {
                 .contentType(ContentType.JSON)
                 .body("{}")
         .when()
-                .post("/order-service/api/carts")
+                .post("/app/api/carts")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .extract()
@@ -80,7 +81,7 @@ class OrderCreationE2ETest extends BaseE2ETest {
                 .contentType(ContentType.JSON)
                 .body(orderPayload)
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("orderId", notNullValue())
@@ -102,7 +103,7 @@ class OrderCreationE2ETest extends BaseE2ETest {
                 .contentType(ContentType.JSON)
                 .body(orderPayload)
         .when()
-                .post("/order-service/api/orders")
+                .post("/app/api/orders")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .extract()
@@ -111,7 +112,7 @@ class OrderCreationE2ETest extends BaseE2ETest {
         // Step 2: Retrieve order
         given()
         .when()
-                .get("/order-service/api/orders/" + orderId)
+                .get("/app/api/orders/" + orderId)
         .then()
                 .statusCode(200)
                 .body("orderId", equalTo(orderId))
@@ -123,7 +124,7 @@ class OrderCreationE2ETest extends BaseE2ETest {
     void getAllOrders_shouldReturnOrderList() {
         given()
         .when()
-                .get("/order-service/api/orders")
+                .get("/app/api/orders")
         .then()
                 .statusCode(200)
                 .body("$", not(empty()))

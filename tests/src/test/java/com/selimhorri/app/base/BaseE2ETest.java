@@ -59,5 +59,4 @@ public abstract class BaseE2ETest {
     protected void cleanupTestData() {
         // TODO: Implement test data cleanup
     }
-    }
 }
