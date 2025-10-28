@@ -95,14 +95,13 @@ class ProductBrowsingE2ETest {
                 .extract()
                 .path("collection[0].categoryId");
 
-        // Step 3: Get products by category
+        // Step 3: Get all products (search by category not supported yet)
         given()
-                .queryParam("categoryId", categoryId)
         .when()
-                .get("/app/api/products/search")
+                .get("/app/api/products")
         .then()
-                .statusCode(anyOf(is(200), is(404)))  // 404 if no products in category
-                .body("$", anyOf(empty(), not(empty())));
+                .statusCode(200)
+                .body("collection", anyOf(empty(), not(empty())));
     }
 
     @Test

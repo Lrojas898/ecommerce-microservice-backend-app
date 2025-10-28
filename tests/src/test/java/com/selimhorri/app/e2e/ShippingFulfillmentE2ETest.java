@@ -76,7 +76,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(shippingPayload)
         .when()
-                .post("/app/api/order-items")
+                .post("/app/api/shippings")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("orderItemId", notNullValue())
@@ -101,7 +101,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":1}", orderId))
         .when()
-                .post("/app/api/order-items")
+                .post("/app/api/shippings")
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
@@ -109,7 +109,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":2,\"orderedQuantity\":3}", orderId))
         .when()
-                .post("/app/api/order-items")
+                .post("/app/api/shippings")
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
@@ -117,7 +117,7 @@ class ShippingFulfillmentE2ETest {
         given()
                 .queryParam("orderId", orderId)
         .when()
-                .get("/app/api/order-items/search")
+                .get("/app/api/shippings")
         .then()
                 .statusCode(anyOf(is(200), is(404)))
                 .body("$", anyOf(empty(), hasSize(greaterThanOrEqualTo(2))));
@@ -154,7 +154,7 @@ class ShippingFulfillmentE2ETest {
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":5}", orderId))
         .when()
-                .post("/app/api/order-items")
+                .post("/app/api/shippings")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("orderedQuantity", equalTo(5));
@@ -173,7 +173,7 @@ class ShippingFulfillmentE2ETest {
     void getAllShippingItems_shouldReturnList() {
         given()
         .when()
-                .get("/app/api/order-items")
+                .get("/app/api/shippings")
         .then()
                 .statusCode(200)
                 .body("$", anyOf(empty(), not(empty())));
