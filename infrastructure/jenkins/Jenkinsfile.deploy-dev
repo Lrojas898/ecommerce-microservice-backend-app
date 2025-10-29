@@ -361,7 +361,7 @@ pipeline {
                             # Test API Gateway connectivity
                             echo "Testing API Gateway connectivity..."
                             retries=0
-                            until curl -sf http://${gatewayUrl}/app/actuator/health || [ \$retries -ge 5 ]; do
+                            until curl -sf http://${gatewayUrl}/actuator/health || [ \$retries -ge 5 ]; do
                                 echo "API Gateway not ready, waiting..."
                                 sleep 30
                                 retries=\$((retries + 1))
