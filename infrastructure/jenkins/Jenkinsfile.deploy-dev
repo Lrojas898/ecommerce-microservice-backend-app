@@ -242,7 +242,7 @@ pipeline {
                         # Verify API Gateway health
                         echo "Verifying API Gateway health..."
                         retries=0
-                        until kubectl exec -n ${K8S_NAMESPACE} deploy/api-gateway -- curl -sf http://localhost:80/app/actuator/health || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                        until kubectl exec -n ${K8S_NAMESPACE} deploy/api-gateway -- curl -sf http://localhost:80/actuator/health || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
                             sleep 30
                             retries=\$((retries + 1))
                         done
