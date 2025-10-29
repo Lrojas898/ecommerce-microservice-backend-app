@@ -373,7 +373,7 @@ pipeline {
                             
                             cd tests
                             mvn clean verify -Pe2e-tests \\
-                                -Dtest.base.url=http://${gatewayUrl}/app \\
+                                -Dtest.base.url=http://${gatewayUrl} \\
                                 -Dtest.timeout=60000
                         """
                     } else {
