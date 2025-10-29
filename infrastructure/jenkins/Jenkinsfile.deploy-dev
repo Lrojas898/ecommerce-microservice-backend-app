@@ -51,11 +51,23 @@ pipeline {
                             echo "Pre-deployment cleanup for ${service}..."
                             
                             # Delete old replica sets with 0 replicas
-                            kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} -o name | while read rs; do
-                                DESIRED=\$(kubectl get \$rs -n ${K8S_NAMESPACE} -o jsonpath='{.spec.replicas}')
-                                if [ "\$DESIRED" = "0" ]; then
-                                    echo "Deleting old replica set: \$rs"
-                                    kubectl delete \$rs -n ${K8S_NAMESPACE} || true
+                            echo "Checking for old replica sets..."
+                            kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} -o name 2>/dev/null | while read rs; do
+                                if [ -n "\$rs" ]; then
+                                    DESIRED=\$(kubectl get \$rs -n ${K8S_NAMESPACE} -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "")
+                                    if [ "\$DESIRED" = "0" ]; then
+                                        echo "Deleting old replica set: \$rs"
+                                        kubectl delete \$rs -n ${K8S_NAMESPACE} || echo "Failed to delete \$rs"
+                                    fi
+                                fi
+                            done
+                            
+                            # Clean up any pods in terminating state for longer than 5 minutes
+                            echo "Cleaning up stuck terminating pods..."
+                            kubectl get pods -n ${K8S_NAMESPACE} -l app=${service} --field-selector=status.phase=Terminating -o name 2>/dev/null | while read pod; do
+                                if [ -n "\$pod" ]; then
+                                    echo "Force deleting stuck pod: \$pod"
+                                    kubectl delete \$pod -n ${K8S_NAMESPACE} --grace-period=0 --force || echo "Failed to force delete \$pod"
                                 fi
                             done
                             
@@ -257,8 +269,15 @@ pipeline {
                         pod_count=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers | wc -l)
                         if [ \$pod_count -gt 1 ]; then
                             echo "WARNING: Multiple pods found for \$service (\$pod_count pods)"
-                            # Keep only the newest pod
-                            kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' | xargs -r kubectl delete pod -n ${K8S_NAMESPACE} || true
+                            # Keep only the newest pod - fixed syntax
+                            kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' > /tmp/pods_to_delete
+                            while read pod_name; do
+                                if [ -n "\$pod_name" ]; then
+                                    echo "Deleting old pod: \$pod_name"
+                                    kubectl delete pod "\$pod_name" -n ${K8S_NAMESPACE} || echo "Failed to delete \$pod_name"
+                                fi
+                            done < /tmp/pods_to_delete
+                            rm -f /tmp/pods_to_delete
                         fi
                     done
                     
