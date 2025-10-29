@@ -60,7 +60,7 @@ spring:
         predicates:
         - Path=/app/**
         filters:
-        - StripPrefix=0
+        - StripPrefix=1
 
 resilience4j:
   circuitbreaker:
