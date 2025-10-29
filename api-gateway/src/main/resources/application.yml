@@ -60,7 +60,7 @@ spring:
         predicates:
         - Path=/app/**
         filters:
-        - StripPrefix=1
+        - StripPrefix=1  # Remove /app prefix before forwarding to proxy-client
 
 resilience4j:
   circuitbreaker:
