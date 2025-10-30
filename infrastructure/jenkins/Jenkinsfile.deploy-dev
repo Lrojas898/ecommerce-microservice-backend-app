@@ -258,13 +258,18 @@ pipeline {
         stage('Deploy Microservices') {
             steps {
                 script {
+                    // Deploy in order: services without DB first, then services with DB
                     def microservices = [
+                        'api-gateway',
+                        'service-discovery',
+                        'cloud-config',
+                        'proxy-client',
+                        'shipping-service',
                         'user-service',
                         'product-service',
                         'order-service',
                         'favourite-service',
-                        'payment-service',
-                        'shipping-service'
+                        'payment-service'
                     ]
 
                     def serviceVersions = [:]
