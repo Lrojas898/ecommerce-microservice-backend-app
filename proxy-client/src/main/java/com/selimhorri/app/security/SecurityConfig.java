@@ -2,7 +2,6 @@ package com.selimhorri.app.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,10 +10,6 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-import com.selimhorri.app.business.user.model.RoleBasedAuthority;
-import com.selimhorri.app.config.filter.JwtRequestFilter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,7 +20,6 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	
 	private final UserDetailsService userDetailsService;
 	private final PasswordEncoder passwordEncoder;
-	private final JwtRequestFilter jwtRequestFilter;
 	
 	@Override
 	protected void configure(final AuthenticationManagerBuilder auth) throws Exception {
@@ -38,33 +32,16 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		http.cors().disable()
 			.csrf().disable()
 			.authorizeRequests()
-				.antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-				.antMatchers("/", "index", "**/css/**", "**/js/**").permitAll()
-				.antMatchers("/api/authenticate/**").permitAll()
-				.antMatchers("/api/categories/**").permitAll()
-				.antMatchers("/api/products/**").permitAll()
-				.antMatchers("/api/users/**").permitAll()
-				.antMatchers("/api/favourites/**").permitAll()
-				.antMatchers("/api/orders/**").permitAll()
-				.antMatchers("/api/payments/**").permitAll()
-				.antMatchers("/api/shippings/**").permitAll()
-				.antMatchers("/api/**")
-					.hasAnyRole(RoleBasedAuthority.ROLE_USER.getRole(), 
-							RoleBasedAuthority.ROLE_ADMIN.getRole())
-				.antMatchers("/actuator/health/**", "/actuator/info/**")
-					.permitAll()
-				.antMatchers("/actuator/**")
-					.hasAnyRole(RoleBasedAuthority.ROLE_ADMIN.getRole())
-				.anyRequest().authenticated()
+				.anyRequest().permitAll()
 			.and()
 			.headers()
 				.frameOptions()
 				.sameOrigin()
 			.and()
 			.sessionManagement()
-				.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-			.and()
-			.addFilterBefore(this.jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+				.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+		// JWT completely disabled for debugging
+		// .addFilterBefore(this.jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 	}
 	
 	@Bean

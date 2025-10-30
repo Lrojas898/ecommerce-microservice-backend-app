@@ -12,7 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
+// import org.springframework.stereotype.Component;  // DISABLED FOR DEBUGGING
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.selimhorri.app.jwt.service.JwtService;
@@ -20,7 +20,7 @@ import com.selimhorri.app.jwt.service.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-@Component
+// @Component  // DISABLED FOR DEBUGGING - JWT completely disabled
 @Slf4j
 @RequiredArgsConstructor
 public class JwtRequestFilter extends OncePerRequestFilter {
@@ -34,6 +34,18 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 		
 		log.info("**JwtRequestFilter, once per request, validating and extracting token*\n");
 		
+		// Skip JWT validation for public endpoints
+		final String requestPath = request.getRequestURI();
+		log.info("**DEBUG: Incoming request path: {} {}, headers: {}*\n", request.getMethod(), requestPath, request.getHeaderNames());
+		
+		if (requestPath.contains("/api/authenticate") || 
+		    requestPath.contains("/api/users") && "POST".equals(request.getMethod()) ||
+		    requestPath.contains("/actuator/health")) {
+			log.info("**Skipping JWT validation for public endpoint: {} {}*\n", request.getMethod(), requestPath);
+			filterChain.doFilter(request, response);
+			return;
+		}
+		
 		final var authorizationHeader = request.getHeader("Authorization");
 		
 		String username = null;
@@ -46,15 +58,18 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 		
 		if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 			
-			final UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
-			
-			if (this.jwtService.validateToken(jwt, userDetails)) {
-				final UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = 
-						new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-				usernamePasswordAuthenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-				SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+			try {
+				final UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+				
+				if (this.jwtService.validateToken(jwt, userDetails)) {
+					final UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = 
+							new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+					usernamePasswordAuthenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+					SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+				}
+			} catch (Exception e) {
+				log.error("**Error loading user details: {}*\n", e.getMessage());
 			}
-			
 		}
 		
 		filterChain.doFilter(request, response);
