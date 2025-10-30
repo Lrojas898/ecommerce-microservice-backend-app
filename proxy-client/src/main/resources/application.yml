@@ -9,6 +9,28 @@ spring:
     import: ${SPRING_CONFIG_IMPORT:optional:configserver:http://localhost:9296}
   application:
     name: PROXY-CLIENT
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 10000
+            readTimeout: 10000
+            loggerLevel: FULL
+    loadbalancer:
+      ribbon:
+        enabled: false
+      retry:
+        enabled: false
+      eager-load:
+        enabled: true
+        clients:
+          - USER-SERVICE
+          - PRODUCT-SERVICE
+          - ORDER-SERVICE
+          - PAYMENT-SERVICE
+          - SHIPPING-SERVICE
+          - FAVOURITE-SERVICE
 
 resilience4j:
   circuitbreaker:
@@ -33,12 +55,17 @@ management:
       show-details: always
 
 eureka:
+  instance:
+    prefer-ip-address: true
   client:
     service-url:
       defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
     enabled: ${EUREKA_CLIENT_ENABLED:true}
     register-with-eureka: ${EUREKA_CLIENT_REGISTER_WITH_EUREKA:true}
     fetch-registry: ${EUREKA_CLIENT_FETCH_REGISTRY:true}
+    registry-fetch-interval-seconds: 5
+    healthcheck:
+      enabled: false
 
 logging:
   level:
