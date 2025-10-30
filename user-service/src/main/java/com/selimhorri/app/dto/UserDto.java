@@ -39,6 +39,13 @@ public class UserDto implements Serializable {
 	@JsonInclude(value = Include.NON_NULL)
 	private CredentialDto credentialDto;
 	
+	// Convenience fields for registration - used when credential object not provided
+	@JsonInclude(value = Include.NON_NULL)
+	private String username;
+	
+	@JsonInclude(value = Include.NON_NULL)
+	private String password;
+	
 }
 
 

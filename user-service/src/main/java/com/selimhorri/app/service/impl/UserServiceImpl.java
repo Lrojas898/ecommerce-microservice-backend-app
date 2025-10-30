@@ -5,8 +5,10 @@ import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.selimhorri.app.domain.User;
 import com.selimhorri.app.dto.UserDto;
 import com.selimhorri.app.exception.wrapper.UserObjectNotFoundException;
 import com.selimhorri.app.helper.UserMappingHelper;
@@ -23,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UserServiceImpl implements UserService {
 	
 	private final UserRepository userRepository;
+	private final PasswordEncoder passwordEncoder;
 	
 	@Override
 	public List<UserDto> findAll() {
@@ -45,7 +48,15 @@ public class UserServiceImpl implements UserService {
 	@Override
 	public UserDto save(final UserDto userDto) {
 		log.info("*** UserDto, service; save user *");
-		return UserMappingHelper.map(this.userRepository.save(UserMappingHelper.map(userDto)));
+		User user = UserMappingHelper.map(userDto);
+		
+		// Encrypt password if it's a new user with plain password (from flat username/password fields)
+		if (userDto.getCredentialDto() == null && userDto.getPassword() != null) {
+			String encodedPassword = this.passwordEncoder.encode(userDto.getPassword());
+			user.getCredential().setPassword(encodedPassword);
+		}
+		
+		return UserMappingHelper.map(this.userRepository.save(user));
 	}
 	
 	@Override

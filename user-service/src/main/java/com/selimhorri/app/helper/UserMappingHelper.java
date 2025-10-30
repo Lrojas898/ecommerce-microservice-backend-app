@@ -1,6 +1,7 @@
 package com.selimhorri.app.helper;
 
 import com.selimhorri.app.domain.Credential;
+import com.selimhorri.app.domain.RoleBasedAuthority;
 import com.selimhorri.app.domain.User;
 import com.selimhorri.app.dto.CredentialDto;
 import com.selimhorri.app.dto.UserDto;
@@ -30,6 +31,33 @@ public interface UserMappingHelper {
 	}
 	
 	public static User map(final UserDto userDto) {
+		// Handle both cases: nested credential object or flat username/password fields
+		Credential credential;
+		if (userDto.getCredentialDto() != null) {
+			// Use nested credential object
+			credential = Credential.builder()
+				.credentialId(userDto.getCredentialDto().getCredentialId())
+				.username(userDto.getCredentialDto().getUsername())
+				.password(userDto.getCredentialDto().getPassword())
+				.roleBasedAuthority(userDto.getCredentialDto().getRoleBasedAuthority())
+				.isEnabled(userDto.getCredentialDto().getIsEnabled())
+				.isAccountNonExpired(userDto.getCredentialDto().getIsAccountNonExpired())
+				.isAccountNonLocked(userDto.getCredentialDto().getIsAccountNonLocked())
+				.isCredentialsNonExpired(userDto.getCredentialDto().getIsCredentialsNonExpired())
+				.build();
+		} else {
+			// Use flat username/password fields (for registration)
+			credential = Credential.builder()
+				.username(userDto.getUsername())
+				.password(userDto.getPassword())
+				.roleBasedAuthority(RoleBasedAuthority.ROLE_USER)
+				.isEnabled(true)
+				.isAccountNonExpired(true)
+				.isAccountNonLocked(true)
+				.isCredentialsNonExpired(true)
+				.build();
+		}
+		
 		return User.builder()
 				.userId(userDto.getUserId())
 				.firstName(userDto.getFirstName())
@@ -37,17 +65,7 @@ public interface UserMappingHelper {
 				.imageUrl(userDto.getImageUrl())
 				.email(userDto.getEmail())
 				.phone(userDto.getPhone())
-				.credential(
-						Credential.builder()
-							.credentialId(userDto.getCredentialDto().getCredentialId())
-							.username(userDto.getCredentialDto().getUsername())
-							.password(userDto.getCredentialDto().getPassword())
-							.roleBasedAuthority(userDto.getCredentialDto().getRoleBasedAuthority())
-							.isEnabled(userDto.getCredentialDto().getIsEnabled())
-							.isAccountNonExpired(userDto.getCredentialDto().getIsAccountNonExpired())
-							.isAccountNonLocked(userDto.getCredentialDto().getIsAccountNonLocked())
-							.isCredentialsNonExpired(userDto.getCredentialDto().getIsCredentialsNonExpired())
-							.build())
+				.credential(credential)
 				.build();
 	}
 	
