@@ -27,26 +27,19 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	@Override
 	public AuthenticationResponse authenticate(final AuthenticationRequest authenticationRequest) {
 		
-		log.info("** AuthenticationResponse, authenticate user service - DEBUG MODE (JWT DISABLED)*\n");
+		log.info("** AuthenticationResponse, authenticate user service*\n");
 		
-		// TEMPORARY DEBUG - Skip authentication manager completely
-		log.info("** DEBUG: Username: {}, Password provided: {}", 
-				authenticationRequest.getUsername(), 
-				authenticationRequest.getPassword() != null ? "YES" : "NO");
-		
-		// Skip AuthenticationManager for debugging
-		// Instead, just verify user exists via UserDetailsService
 		try {
-			this.userDetailsService.loadUserByUsername(authenticationRequest.getUsername());
-			log.info("** DEBUG: User found via UserDetailsService");
-			
-			// Return dummy JWT token for debugging
-			return new AuthenticationResponse("DEBUG-TOKEN-JWT-DISABLED-" + authenticationRequest.getUsername());
+			this.authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
+					authenticationRequest.getUsername(), authenticationRequest.getPassword()));
 		}
-		catch (Exception e) {
-			log.error("** DEBUG: Error loading user: {}", e.getMessage());
-			throw new IllegalAuthenticationCredentialsException("#### User not found or service error! ####");
+		catch (BadCredentialsException e) {
+			log.error("** Authentication failed for user: {}", authenticationRequest.getUsername());
+			throw new IllegalAuthenticationCredentialsException("#### Bad credentials! ####");
 		}
+		
+		return new AuthenticationResponse(this.jwtService.generateToken(this.userDetailsService
+				.loadUserByUsername(authenticationRequest.getUsername())));
 	}
 	
 	@Override

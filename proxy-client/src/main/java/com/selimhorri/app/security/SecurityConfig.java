@@ -10,6 +10,9 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.selimhorri.app.config.filter.JwtRequestFilter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,6 +23,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 	
 	private final UserDetailsService userDetailsService;
 	private final PasswordEncoder passwordEncoder;
+	private final JwtRequestFilter jwtRequestFilter;
 	
 	@Override
 	protected void configure(final AuthenticationManagerBuilder auth) throws Exception {
@@ -32,16 +36,17 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		http.cors().disable()
 			.csrf().disable()
 			.authorizeRequests()
-				.anyRequest().permitAll()
+				.antMatchers("/api/authenticate", "/api/users", "/actuator/health").permitAll()
+				.anyRequest().authenticated()
 			.and()
 			.headers()
 				.frameOptions()
 				.sameOrigin()
 			.and()
 			.sessionManagement()
-				.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
-		// JWT completely disabled for debugging
-		// .addFilterBefore(this.jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+				.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+			.and()
+			.addFilterBefore(this.jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 	}
 	
 	@Bean
