@@ -34,10 +34,12 @@ public class ApiExceptionHandler {
 		FeignException.class
 	})
 	public <T extends FeignException> ResponseEntity<ExceptionMsg> handleProxyException(final T e) {
-		
+
 		log.info("**ApiExceptionHandler controller, handle feign proxy exception*\n");
+		log.error("**Feign exception details: status={}, message={}, content={}*\n",
+			e.status(), e.getMessage(), e.contentUTF8());
 		final var badRequest = HttpStatus.BAD_REQUEST;
-		
+
 		return new ResponseEntity<>(
 				ExceptionMsg.builder()
 					.msg(e.contentUTF8())

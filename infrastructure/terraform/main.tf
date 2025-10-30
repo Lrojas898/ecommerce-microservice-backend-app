@@ -43,3 +43,18 @@ module "eks" {
   eks_max_capacity       = var.eks_max_capacity
   subnet_ids             = data.aws_subnets.default.ids
 }
+
+# RDS MySQL Module
+module "rds" {
+  source = "./rds"
+
+  project_name              = var.project_name
+  environment              = var.environment
+  subnet_ids               = data.aws_subnets.default.ids
+  db_instance_class        = var.db_instance_class
+  db_allocated_storage     = var.db_allocated_storage
+  db_max_allocated_storage = var.db_max_allocated_storage
+  backup_retention_period  = var.backup_retention_period
+  deletion_protection      = var.deletion_protection
+  skip_final_snapshot      = var.skip_final_snapshot
+}
