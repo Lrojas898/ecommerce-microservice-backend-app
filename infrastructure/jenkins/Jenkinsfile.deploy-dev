@@ -44,31 +44,79 @@ pipeline {
         stage('Setup RDS Database Configuration') {
             steps {
                 script {
-                    echo "Configuring PostgreSQL RDS connection for user-service..."
+                    echo "Configuring PostgreSQL RDS connections for all microservices..."
                     
-                    // Get RDS credentials from AWS Secrets Manager
-                    def rdsSecretArn = "ecommerce-microservices-postgres-credentials"
-                    def rdsCredentials = sh(
-                        script: """
-                            aws secretsmanager get-secret-value --region ${AWS_REGION} --secret-id ${rdsSecretArn} --query SecretString --output text
-                        """,
-                        returnStdout: true
-                    ).trim()
+                    // Define microservices that need database connections
+                    def microservicesWithDb = [
+                        'user': 'user-service',
+                        'product': 'product-service', 
+                        'order': 'order-service',
+                        'payment': 'payment-service',
+                        'favourite': 'favourite-service'
+                    ]
                     
-                    def rdsJson = readJSON text: rdsCredentials
+                    microservicesWithDb.each { dbKey, serviceName ->
+                        try {
+                            echo "Configuring PostgreSQL RDS for ${serviceName}..."
+                            
+                            // Get RDS credentials from AWS Secrets Manager
+                            def rdsSecretArn = "ecommerce-microservices-${dbKey}-postgres-credentials"
+                            def rdsCredentials = sh(
+                                script: """
+                                    aws secretsmanager get-secret-value --region ${AWS_REGION} --secret-id ${rdsSecretArn} --query SecretString --output text
+                                """,
+                                returnStdout: true
+                            ).trim()
+                            
+                            def rdsJson = readJSON text: rdsCredentials
+                            
+                            // Create Kubernetes secret with RDS credentials for each service
+                            sh """
+                                kubectl create secret generic ${serviceName}-postgres-secret -n ${K8S_NAMESPACE} \\
+                                  --from-literal=POSTGRES_HOST='${rdsJson.host}' \\
+                                  --from-literal=POSTGRES_PORT='${rdsJson.port}' \\
+                                  --from-literal=POSTGRES_DB='${rdsJson.dbname}' \\
+                                  --from-literal=POSTGRES_USERNAME='${rdsJson.username}' \\
+                                  --from-literal=POSTGRES_PASSWORD='${rdsJson.password}' \\
+                                  --from-literal=POSTGRES_URL='${rdsJson.url}' \\
+                                  --dry-run=client -o yaml | kubectl apply -f -
+                            """
+                            
+                            echo "PostgreSQL RDS credentials configured successfully for ${serviceName}"
+                            
+                        } catch (Exception e) {
+                            echo "Warning: Failed to configure RDS for ${serviceName}: ${e.getMessage()}"
+                            echo "Service ${serviceName} will fall back to local H2 database"
+                        }
+                    }
                     
-                    // Create Kubernetes secret with RDS credentials
-                    sh """
-                        kubectl create secret generic postgres-secret -n ${K8S_NAMESPACE} \\
-                          --from-literal=POSTGRES_HOST='${rdsJson.host}' \\
-                          --from-literal=POSTGRES_PORT='${rdsJson.port}' \\
-                          --from-literal=POSTGRES_DB='${rdsJson.dbname}' \\
-                          --from-literal=POSTGRES_USERNAME='${rdsJson.username}' \\
-                          --from-literal=POSTGRES_PASSWORD='${rdsJson.password}' \\
-                          --dry-run=client -o yaml | kubectl apply -f -
-                    """
-                    
-                    echo "PostgreSQL RDS credentials configured successfully"
+                    // Legacy secret for backward compatibility (user-service)
+                    try {
+                        def legacySecretArn = "ecommerce-microservices-postgres-credentials"
+                        def legacyCredentials = sh(
+                            script: """
+                                aws secretsmanager get-secret-value --region ${AWS_REGION} --secret-id ${legacySecretArn} --query SecretString --output text
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        def legacyJson = readJSON text: legacyCredentials
+                        
+                        sh """
+                            kubectl create secret generic postgres-secret -n ${K8S_NAMESPACE} \\
+                              --from-literal=POSTGRES_HOST='${legacyJson.host}' \\
+                              --from-literal=POSTGRES_PORT='${legacyJson.port}' \\
+                              --from-literal=POSTGRES_DB='${legacyJson.dbname}' \\
+                              --from-literal=POSTGRES_USERNAME='${legacyJson.username}' \\
+                              --from-literal=POSTGRES_PASSWORD='${legacyJson.password}' \\
+                              --dry-run=client -o yaml | kubectl apply -f -
+                        """
+                        
+                        echo "Legacy PostgreSQL secret configured for backward compatibility"
+                        
+                    } catch (Exception e) {
+                        echo "Warning: Failed to configure legacy PostgreSQL secret: ${e.getMessage()}"
+                    }
                 }
             }
         }

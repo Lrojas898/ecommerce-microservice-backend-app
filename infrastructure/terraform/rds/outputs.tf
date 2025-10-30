@@ -29,3 +29,40 @@ output "postgres_connection_string" {
   value       = "jdbc:postgresql://${aws_db_instance.postgres.address}:${aws_db_instance.postgres.port}/${aws_db_instance.postgres.db_name}?sslmode=require"
   sensitive   = true
 }
+
+# Outputs for microservice databases
+output "microservice_postgres_endpoints" {
+  description = "PostgreSQL database endpoints for each microservice"
+  value = {
+    for service, instance in aws_db_instance.microservice_postgres : service => instance.address
+  }
+}
+
+output "microservice_postgres_ports" {
+  description = "PostgreSQL database ports for each microservice"
+  value = {
+    for service, instance in aws_db_instance.microservice_postgres : service => instance.port
+  }
+}
+
+output "microservice_postgres_database_names" {
+  description = "PostgreSQL database names for each microservice"
+  value = {
+    for service, instance in aws_db_instance.microservice_postgres : service => instance.db_name
+  }
+}
+
+output "microservice_postgres_secret_arns" {
+  description = "ARNs of secrets containing PostgreSQL credentials for each microservice"
+  value = {
+    for service, secret in aws_secretsmanager_secret.microservice_postgres_passwords : service => secret.arn
+  }
+}
+
+output "microservice_postgres_connection_strings" {
+  description = "PostgreSQL JDBC connection strings for each microservice"
+  value = {
+    for service, instance in aws_db_instance.microservice_postgres : service => "jdbc:postgresql://${instance.address}:${instance.port}/${instance.db_name}?sslmode=require"
+  }
+  sensitive = true
+}

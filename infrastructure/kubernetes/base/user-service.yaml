@@ -51,33 +51,33 @@ spec:
               value: "true"
             - name: EUREKA_CLIENT_FETCH_REGISTRY
               value: "true"
-            # PostgreSQL RDS Configuration
+            # PostgreSQL RDS Configuration - Service-specific database
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=require"
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: user-service-postgres-secret
                   key: POSTGRES_USERNAME
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: user-service-postgres-secret
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_HOST
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: user-service-postgres-secret
                   key: POSTGRES_HOST
             - name: POSTGRES_PORT
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: user-service-postgres-secret
                   key: POSTGRES_PORT
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: user-service-postgres-secret
                   key: POSTGRES_DB
             - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
               value: "org.postgresql.Driver"
