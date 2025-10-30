@@ -10,10 +10,18 @@ management:
 
 spring:
   datasource:
+    # Default to local PostgreSQL, will be overridden by environment variables if RDS is available
     url: jdbc:postgresql://postgresql:5432/ecommerce_users
     username: ecommerce_user
     password: ecommerce_password123
     driver-class-name: org.postgresql.Driver
+    # Connection pool settings for stability
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
   jpa:
     show-sql: true
     hibernate:

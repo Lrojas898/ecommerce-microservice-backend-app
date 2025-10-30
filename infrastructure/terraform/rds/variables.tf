@@ -36,13 +36,13 @@ variable "db_max_allocated_storage" {
 variable "db_name" {
   description = "Name of the database"
   type        = string
-  default     = "ecommerce_db"
+  default     = "ecommerce_users"
 }
 
 variable "db_username" {
   description = "Database master username"
   type        = string
-  default     = "admin"
+  default     = "ecommerce_user"
 }
 
 variable "backup_retention_period" {

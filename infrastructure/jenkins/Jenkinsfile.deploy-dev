@@ -41,11 +41,80 @@ pipeline {
             }
         }
 
+        stage('Setup RDS Database Configuration') {
+            steps {
+                script {
+                    echo "Configuring PostgreSQL RDS connection for user-service..."
+                    
+                    // Get RDS credentials from AWS Secrets Manager
+                    def rdsSecretArn = "ecommerce-microservices-postgres-credentials"
+                    def rdsCredentials = sh(
+                        script: """
+                            aws secretsmanager get-secret-value --region ${AWS_REGION} --secret-id ${rdsSecretArn} --query SecretString --output text
+                        """,
+                        returnStdout: true
+                    ).trim()
+                    
+                    def rdsJson = readJSON text: rdsCredentials
+                    
+                    // Create Kubernetes secret with RDS credentials
+                    sh """
+                        kubectl create secret generic postgres-secret -n ${K8S_NAMESPACE} \\
+                          --from-literal=POSTGRES_HOST='${rdsJson.host}' \\
+                          --from-literal=POSTGRES_PORT='${rdsJson.port}' \\
+                          --from-literal=POSTGRES_DB='${rdsJson.dbname}' \\
+                          --from-literal=POSTGRES_USERNAME='${rdsJson.username}' \\
+                          --from-literal=POSTGRES_PASSWORD='${rdsJson.password}' \\
+                          --dry-run=client -o yaml | kubectl apply -f -
+                    """
+                    
+                    echo "PostgreSQL RDS credentials configured successfully"
+                }
+            }
+        }
+
+        stage('Deploy PostgreSQL (if using local)') {
+            when {
+                // Only deploy local PostgreSQL if RDS is not available or in fallback mode
+                expression { 
+                    env.USE_LOCAL_POSTGRES == 'true' || 
+                    sh(script: "aws secretsmanager get-secret-value --region ${AWS_REGION} --secret-id ecommerce-microservices-postgres-credentials --query SecretString --output text", returnStatus: true) != 0
+                }
+            }
+            steps {
+                script {
+                    echo "Deploying local PostgreSQL as fallback..."
+                    sh """
+                        # Deploy PostgreSQL if not already running
+                        if ! kubectl get deployment postgresql -n ${K8S_NAMESPACE} &>/dev/null; then
+                            echo "PostgreSQL deployment not found, creating..."
+                            kubectl apply -f infrastructure/kubernetes/postgres-deployment.yaml
+                        else
+                            echo "PostgreSQL already deployed, checking status..."
+                            kubectl get pods -l app=postgresql -n ${K8S_NAMESPACE}
+                        fi
+                        
+                        # Wait for PostgreSQL to be ready
+                        echo "Waiting for PostgreSQL to be ready..."
+                        kubectl rollout status deployment/postgresql -n ${K8S_NAMESPACE} --timeout=300s
+                    """
+                }
+            }
+        }
+
         stage('Clean Old Pods') {
             steps {
                 script {
                     def services = env.ALL_SERVICES.split(',')
+                    def persistentServices = ['postgresql', 'postgres'] // Services that should NOT be scaled down
+                    
                     services.each { service ->
+                        // Skip persistent data services
+                        if (persistentServices.contains(service.toLowerCase())) {
+                            echo "Skipping cleanup for persistent service: ${service}"
+                            return
+                        }
+                        
                         sh """
                             set -e
                             echo "Pre-deployment cleanup for ${service}..."

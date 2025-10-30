@@ -62,6 +62,22 @@ output "eks_scale_down_command" {
   value       = module.eks.scale_down_command
 }
 
+# RDS PostgreSQL Outputs
+output "postgres_endpoint" {
+  description = "PostgreSQL database endpoint"
+  value       = module.rds.postgres_endpoint
+}
+
+output "postgres_database_name" {
+  description = "PostgreSQL database name"
+  value       = module.rds.postgres_database_name
+}
+
+output "postgres_secret_arn" {
+  description = "ARN of the secret containing PostgreSQL credentials"
+  value       = module.rds.postgres_secret_arn
+}
+
 output "next_steps" {
   description = "Next steps after infrastructure deployment"
   value       = <<-EOT

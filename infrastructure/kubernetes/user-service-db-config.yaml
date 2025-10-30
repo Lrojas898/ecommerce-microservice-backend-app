@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: dev
+type: Opaque
+data:
+  POSTGRES_HOST: # This will be populated by Jenkins from AWS Secrets Manager
+  POSTGRES_PORT: NTQzMg== # 5432 in base64
+  POSTGRES_DB: # This will be populated by Jenkins from AWS Secrets Manager
+  POSTGRES_USERNAME: # This will be populated by Jenkins from AWS Secrets Manager
+  POSTGRES_PASSWORD: # This will be populated by Jenkins from AWS Secrets Manager
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  namespace: dev
+data:
+  SPRING_PROFILES_ACTIVE: "default"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=require"
+  SPRING_DATASOURCE_USERNAME: "$(POSTGRES_USERNAME)"
+  SPRING_DATASOURCE_PASSWORD: "$(POSTGRES_PASSWORD)"
+  SPRING_DATASOURCE_DRIVER_CLASS_NAME: "org.postgresql.Driver"
+  SPRING_JPA_DATABASE_PLATFORM: "org.hibernate.dialect.PostgreSQLDialect"

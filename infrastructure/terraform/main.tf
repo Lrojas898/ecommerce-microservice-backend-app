@@ -44,7 +44,7 @@ module "eks" {
   subnet_ids             = data.aws_subnets.default.ids
 }
 
-# RDS MySQL Module
+# RDS PostgreSQL Module
 module "rds" {
   source = "./rds"
 
