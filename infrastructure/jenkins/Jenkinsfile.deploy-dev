@@ -50,6 +50,14 @@ pipeline {
                             set -e
                             echo "Pre-deployment cleanup for ${service}..."
                             
+                            # Scale down deployment to 0 to free resources
+                            echo "Scaling down ${service} to free resources..."
+                            kubectl scale deployment/${service} -n ${K8S_NAMESPACE} --replicas=0 || echo "Deployment ${service} not found"
+                            
+                            # Wait for pods to terminate
+                            echo "Waiting for pods to terminate..."
+                            kubectl wait --for=delete pods -l app=${service} -n ${K8S_NAMESPACE} --timeout=60s || echo "Some pods may still be terminating"
+                            
                             # Delete old replica sets with 0 replicas
                             echo "Checking for old replica sets..."
                             kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} -o name 2>/dev/null | while read rs; do
@@ -71,8 +79,8 @@ pipeline {
                                 fi
                             done
                             
-                            # Ensure deployment exists and has exactly 1 replica
-                            kubectl scale deployment/${service} -n ${K8S_NAMESPACE} --replicas=1 || echo "Deployment ${service} not found, will be created"
+                            # Deployment will be scaled up during the deploy stage
+                            echo "Cleanup completed for ${service}"
                         """
                     }
                 }
@@ -98,7 +106,7 @@ pipeline {
                             set -e
                             kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                             kubectl set image deployment/${service} ${service}=${ECR_REGISTRY}/ecommerce/${service}:${version} -n ${K8S_NAMESPACE}
-                            kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                            kubectl scale deployment/${service} -n ${K8S_NAMESPACE} --replicas=1
                             kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                             if [ "${service}" = "service-discovery" ]; then
