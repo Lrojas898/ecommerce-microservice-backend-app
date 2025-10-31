@@ -86,7 +86,7 @@ class ProductBrowsingE2ETest {
     }
 
     @Test
-    void browseProductsByCategory_shouldFilterCorrectly() {
+    void browseProductsByCategory_shouldReturnProducts() {
         // Step 1: Get all categories
         given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
@@ -96,17 +96,9 @@ class ProductBrowsingE2ETest {
                 .statusCode(200)
                 .body("collection", not(empty()));
 
-        // Step 2: Get category ID
-        final Integer categoryId = given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-        .when()
-                .get("/app/api/categories")
-        .then()
-                .statusCode(200)
-                .extract()
-                .path("collection[0].categoryId");
-
-        // Step 3: Get all products (search by category not supported yet)
+        // Step 2: Get all products
+        // Note: Filtering by category is not implemented in the backend yet
+        // For now, we just verify that products can be retrieved
         given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
@@ -118,14 +110,26 @@ class ProductBrowsingE2ETest {
 
     @Test
     void addProductToFavourites_shouldCreateFavourite() {
-        // Assuming user is authenticated (simplified for E2E)
+        // Step 1: Get a product to add to favourites
+        final Integer productId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
+        .when()
+                .get("/app/api/products")
+        .then()
+                .statusCode(200)
+                .body("collection", not(empty()))
+                .extract()
+                .path("collection[0].productId");
+
+        // Step 2: Add product to favourites
+        // Using userId=1 (testuser from migrations)
         final Integer userId = 1;
-        final Integer productId = 1;
 
         final String favouritePayload = String.format("""
                 {
                     "userId": %d,
-                    "productId": %d
+                    "productId": %d,
+                    "likeDate": "2025-01-01 00:00:00"
                 }
                 """, userId, productId);
 
@@ -139,19 +143,19 @@ class ProductBrowsingE2ETest {
                 .statusCode(anyOf(is(200), is(201)))
                 .body("userId", equalTo(userId))
                 .body("productId", equalTo(productId))
-                .body("favouriteId", notNullValue());
+                .body("likeDate", notNullValue());
     }
 
     @Test
     void getUserFavourites_shouldReturnFavouriteProducts() {
-        final Integer userId = 1;
-
+        // Note: Endpoint /api/favourites/user/{userId} doesn't exist
+        // Using /api/favourites instead (returns all favourites)
         given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
-                .get("/app/api/favourites/user/" + userId)
+                .get("/app/api/favourites")
         .then()
-                .statusCode(anyOf(is(200), is(404)))
-                .body("$", anyOf(empty(), not(empty())));
+                .statusCode(200)
+                .body("collection", anyOf(empty(), not(empty())));
     }
 }

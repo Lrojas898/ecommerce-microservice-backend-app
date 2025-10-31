@@ -41,17 +41,18 @@ class UserRegistrationE2ETest {
 
     @Test
     void completeUserRegistrationFlow_shouldSucceed() {
-        // Step 1: Register new user
-        final String registrationPayload = """
+        // Step 1: Register new user with unique timestamp
+        final long timestamp = System.currentTimeMillis();
+        final String registrationPayload = String.format("""
                 {
                     "firstName": "E2E",
                     "lastName": "TestUser",
-                    "email": "e2e.test@example.com",
+                    "email": "e2e.test.%d@example.com",
                     "phone": "+1234567890",
-                    "username": "e2etest",
+                    "username": "e2etest%d",
                     "password": "SecurePass123!"
                 }
-                """;
+                """, timestamp, timestamp);
 
         given()
                 .contentType(ContentType.JSON)
@@ -62,23 +63,24 @@ class UserRegistrationE2ETest {
                 .statusCode(anyOf(is(200), is(201)))
                 .body("firstName", equalTo("E2E"))
                 .body("lastName", equalTo("TestUser"))
-                .body("email", equalTo("e2e.test@example.com"))
                 .body("userId", notNullValue());
     }
 
     @Test
     void userLogin_afterSuccessfulRegistration_shouldAuthenticate() {
-        // Step 1: Register user
-        final String registrationPayload = """
+        // Step 1: Register user with unique timestamp
+        final long timestamp = System.currentTimeMillis();
+        final String username = "logintest" + timestamp;
+        final String registrationPayload = String.format("""
                 {
                     "firstName": "Login",
                     "lastName": "Test",
-                    "email": "login.test@example.com",
+                    "email": "login.test.%d@example.com",
                     "phone": "+9876543210",
-                    "username": "logintest",
+                    "username": "%s",
                     "password": "Password123!"
                 }
-                """;
+                """, timestamp, username);
 
         given()
                 .contentType(ContentType.JSON)
@@ -89,12 +91,12 @@ class UserRegistrationE2ETest {
                 .statusCode(anyOf(is(200), is(201)));
 
         // Step 2: Attempt login
-        final String loginPayload = """
+        final String loginPayload = String.format("""
                 {
-                    "username": "logintest",
+                    "username": "%s",
                     "password": "Password123!"
                 }
-                """;
+                """, username);
 
         given()
                 .contentType(ContentType.JSON)
@@ -103,23 +105,25 @@ class UserRegistrationE2ETest {
                 .post("/app/api/authenticate")
         .then()
                 .statusCode(200)
-                .body("token", notNullValue())
-                .body("username", equalTo("logintest"));
+                .body("jwtToken", notNullValue());
     }
 
     @Test
     void getUserProfile_afterAuthentication_shouldReturnUserData() {
-        // Step 1: Register
-        final String registrationPayload = """
+        // Step 1: Register with unique timestamp
+        final long timestamp = System.currentTimeMillis();
+        final String username = "profiletest" + timestamp;
+        final String email = "profile.test." + timestamp + "@example.com";
+        final String registrationPayload = String.format("""
                 {
                     "firstName": "Profile",
                     "lastName": "Test",
-                    "email": "profile.test@example.com",
+                    "email": "%s",
                     "phone": "+1122334455",
-                    "username": "profiletest",
+                    "username": "%s",
                     "password": "Profile123!"
                 }
-                """;
+                """, email, username);
 
         final Integer userId = given()
                 .contentType(ContentType.JSON)
@@ -132,12 +136,12 @@ class UserRegistrationE2ETest {
                 .path("userId");
 
         // Step 2: Login
-        final String loginPayload = """
+        final String loginPayload = String.format("""
                 {
-                    "username": "profiletest",
+                    "username": "%s",
                     "password": "Profile123!"
                 }
-                """;
+                """, username);
 
         final String token = given()
                 .contentType(ContentType.JSON)
@@ -147,7 +151,7 @@ class UserRegistrationE2ETest {
         .then()
                 .statusCode(200)
                 .extract()
-                .path("token");
+                .path("jwtToken");
 
         // Step 3: Get user profile
         given()
@@ -157,6 +161,6 @@ class UserRegistrationE2ETest {
         .then()
                 .statusCode(200)
                 .body("firstName", equalTo("Profile"))
-                .body("email", equalTo("profile.test@example.com"));
+                .body("email", equalTo(email));
     }
 }

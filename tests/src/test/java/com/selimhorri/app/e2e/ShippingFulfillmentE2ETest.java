@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
+import com.selimhorri.app.utils.AuthTestUtils;
+
 import io.restassured.RestAssured;
 import static io.restassured.RestAssured.given;
 import io.restassured.http.ContentType;
@@ -33,20 +35,37 @@ import io.restassured.http.ContentType;
 @TestInstance(Lifecycle.PER_CLASS)
 class ShippingFulfillmentE2ETest {
 
-    private static final String BASE_URL = System.getProperty("test.base.url", 
+    private static final String BASE_URL = System.getProperty("test.base.url",
             System.getenv().getOrDefault("API_URL", "http://localhost:80"));
+
+    private String authToken;
 
     @BeforeAll
     void setup() {
         RestAssured.baseURI = BASE_URL;
+        // Authenticate once before all tests
+        authToken = AuthTestUtils.authenticateAsTestUser();
     }
 
     @Test
     void createShippingItem_afterPaymentConfirmed() {
-        // Step 1: Create order
-        final Integer orderId = given()
+        // Step 1: Create cart
+        final Integer cartId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{\"orderDesc\":\"Shipping Test Order\",\"orderFee\":75.00}")
+                .body("{\"userId\": 1}")
+        .when()
+                .post("/app/api/carts")
+        .then()
+                .statusCode(anyOf(is(200), is(201)))
+                .extract()
+                .path("cartId");
+
+        // Step 2: Create order
+        final Integer orderId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
+                .contentType(ContentType.JSON)
+                .body(String.format("{\"orderDesc\":\"Shipping Test Order\",\"orderFee\":75.00,\"cart\":{\"cartId\":%d}}", cartId))
         .when()
                 .post("/app/api/orders")
         .then()
@@ -54,16 +73,17 @@ class ShippingFulfillmentE2ETest {
                 .extract()
                 .path("orderId");
 
-        // Step 2: Create payment and mark as paid
+        // Step 3: Create payment and mark as paid
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
+                .body(String.format("{\"orderDto\":{\"orderId\":%d},\"isPayed\":true}", orderId))
         .when()
                 .post("/app/api/payments")
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
-        // Step 3: Create shipping item
+        // Step 4: Create shipping item
         final String shippingPayload = String.format("""
                 {
                     "orderId": %d,
@@ -73,31 +93,47 @@ class ShippingFulfillmentE2ETest {
                 """, orderId);
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(shippingPayload)
         .when()
                 .post("/app/api/shippings")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
-                .body("orderItemId", notNullValue())
+                .body("productId", notNullValue())
                 .body("orderId", equalTo(orderId))
                 .body("orderedQuantity", equalTo(2));
     }
 
     @Test
     void getShippingItemsByOrder_shouldReturnAllItems() {
-        // Step 1: Create order
-        final Integer orderId = given()
+        // Step 1: Create cart
+        final Integer cartId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{\"orderDesc\":\"Multi-item Order\",\"orderFee\":150.00}")
+                .body("{\"userId\": 1}")
+        .when()
+                .post("/app/api/carts")
+        .then()
+                .statusCode(anyOf(is(200), is(201)))
+                .extract()
+                .path("cartId");
+
+        // Step 2: Create order
+        final Integer orderId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
+                .contentType(ContentType.JSON)
+                .body(String.format("{\"orderDesc\":\"Multi-item Order\",\"orderFee\":150.00,\"cart\":{\"cartId\":%d}}", cartId))
         .when()
                 .post("/app/api/orders")
         .then()
+                .statusCode(anyOf(is(200), is(201)))
                 .extract()
                 .path("orderId");
 
-        // Step 2: Create multiple shipping items
+        // Step 3: Create multiple shipping items
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":1}", orderId))
         .when()
@@ -106,6 +142,7 @@ class ShippingFulfillmentE2ETest {
                 .statusCode(anyOf(is(200), is(201)));
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":2,\"orderedQuantity\":3}", orderId))
         .when()
@@ -113,24 +150,38 @@ class ShippingFulfillmentE2ETest {
         .then()
                 .statusCode(anyOf(is(200), is(201)));
 
-        // Step 3: Get all shipping items for order
+        // Step 4: Get all shipping items (query by orderId not supported yet)
+        // Note: This endpoint returns all shipping items, not filtered by orderId
         given()
-                .queryParam("orderId", orderId)
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/shippings")
         .then()
-                .statusCode(anyOf(is(200), is(404)))
-                .body("$", anyOf(empty(), hasSize(greaterThanOrEqualTo(2))));
+                .statusCode(200)
+                .body("collection", anyOf(empty(), hasSize(greaterThanOrEqualTo(2))));
     }
 
     @Test
     void completeOrderWorkflow_endToEnd() {
-        // Complete workflow: Order → Payment → Shipping
+        // Complete workflow: Cart → Order → Payment → Shipping
 
-        // Step 1: Create order
-        final Integer orderId = given()
+        // Step 1: Create cart
+        final Integer cartId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{\"orderDesc\":\"Complete Workflow Test\",\"orderFee\":500.00}")
+                .body("{\"userId\": 1}")
+        .when()
+                .post("/app/api/carts")
+        .then()
+                .statusCode(anyOf(is(200), is(201)))
+                .extract()
+                .path("cartId");
+
+        // Step 2: Create order
+        final Integer orderId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
+                .contentType(ContentType.JSON)
+                .body(String.format("{\"orderDesc\":\"Complete Workflow Test\",\"orderFee\":500.00,\"cart\":{\"cartId\":%d}}", cartId))
         .when()
                 .post("/app/api/orders")
         .then()
@@ -139,17 +190,17 @@ class ShippingFulfillmentE2ETest {
                 .extract()
                 .path("orderId");
 
-        // Step 2: Create and process payment
+        // Step 3: Create and process payment
         given()
                 .contentType(ContentType.JSON)
-                .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
+                .body(String.format("{\"orderDto\":{\"orderId\":%d},\"isPayed\":true}", orderId))
         .when()
                 .post("/app/api/payments")
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("isPayed", equalTo(true));
 
-        // Step 3: Create shipping item
+        // Step 4: Create shipping item
         given()
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":5}", orderId))
@@ -159,8 +210,9 @@ class ShippingFulfillmentE2ETest {
                 .statusCode(anyOf(is(200), is(201)))
                 .body("orderedQuantity", equalTo(5));
 
-        // Step 4: Verify order still exists and is complete
+        // Step 5: Verify order still exists and is complete
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/orders/" + orderId)
         .then()
@@ -172,10 +224,11 @@ class ShippingFulfillmentE2ETest {
     @Test
     void getAllShippingItems_shouldReturnList() {
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/shippings")
         .then()
                 .statusCode(200)
-                .body("$", anyOf(empty(), not(empty())));
+                .body("collection", anyOf(empty(), not(empty())));
     }
 }

@@ -2,13 +2,12 @@ package com.selimhorri.app.e2e;
 
 import com.selimhorri.app.utils.AuthTestUtils;
 import io.restassured.RestAssured;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.context.ActiveProfiles;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
@@ -16,22 +15,21 @@ import static org.hamcrest.Matchers.*;
 /**
  * E2E Tests for default user authentication
  * Verifies that pre-existing users can authenticate successfully
- * 
+ *
  * Prerequisites:
  * - Database migrations executed (especially V12)
  * - user-service running and accessible
  * - proxy-client running and accessible
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("test")
+@TestInstance(Lifecycle.PER_CLASS)
 class DefaultUserAuthenticationE2ETest {
 
-    @LocalServerPort
-    private int port;
+    private static final String BASE_URL = System.getProperty("test.base.url",
+            System.getenv().getOrDefault("API_URL", "http://localhost:80"));
 
-    @BeforeEach
-    void setUp() {
-        RestAssured.port = port;
+    @BeforeAll
+    void setup() {
+        RestAssured.baseURI = BASE_URL;
     }
 
     @Test
@@ -51,8 +49,8 @@ class DefaultUserAuthenticationE2ETest {
                 .post("/app/api/authenticate")
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("token", notNullValue())
-                .body("token", not(emptyString()));
+                .body("jwtToken", notNullValue())
+                .body("jwtToken", not(emptyString()));
     }
 
     @Test
@@ -72,8 +70,8 @@ class DefaultUserAuthenticationE2ETest {
                 .post("/app/api/authenticate")
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("token", notNullValue())
-                .body("token", not(emptyString()));
+                .body("jwtToken", notNullValue())
+                .body("jwtToken", not(emptyString()));
     }
 
     @Test
@@ -125,8 +123,8 @@ class DefaultUserAuthenticationE2ETest {
                     .post("/app/api/authenticate")
                     .then()
                     .statusCode(HttpStatus.OK.value())
-                    .body("token", notNullValue())
-                    .body("token", not(emptyString()));
+                    .body("jwtToken", notNullValue())
+                    .body("jwtToken", not(emptyString()));
         }
     }
 

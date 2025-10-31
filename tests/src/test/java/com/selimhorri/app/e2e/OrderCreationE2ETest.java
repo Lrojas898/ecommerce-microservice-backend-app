@@ -46,11 +46,8 @@ class OrderCreationE2ETest {
 
     @Test
     void createCart_shouldReturnNewCart() {
-        final String cartPayload = """
-                {
-                    "cartId": null
-                }
-                """;
+        // For creating a cart, we need userId - using testuser's ID (1)
+        final String cartPayload = "{\"userId\": 1}";
 
         given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
@@ -65,11 +62,11 @@ class OrderCreationE2ETest {
 
     @Test
     void createOrderFromCart_shouldSucceed() {
-        // Step 1: Create cart
+        // Step 1: Create cart with userId
         final Integer cartId = given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{}")
+                .body("{\"userId\": 1}")
         .when()
                 .post("/app/api/carts")
         .then()
@@ -77,12 +74,14 @@ class OrderCreationE2ETest {
                 .extract()
                 .path("cartId");
 
-        // Step 2: Create order from cart
+        // Step 2: Create order from cart - include cart object with cartId
         final String orderPayload = String.format("""
                 {
-                    "cartId": %d,
                     "orderDesc": "E2E Test Order",
-                    "orderFee": 150.00
+                    "orderFee": 150.00,
+                    "cart": {
+                        "cartId": %d
+                    }
                 }
                 """, cartId);
 
@@ -101,13 +100,28 @@ class OrderCreationE2ETest {
 
     @Test
     void getOrderById_shouldReturnOrderDetails() {
-        // Step 1: Create order
-        final String orderPayload = """
+        // Step 1: Create cart with userId
+        final Integer cartId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
+                .contentType(ContentType.JSON)
+                .body("{\"userId\": 1}")
+        .when()
+                .post("/app/api/carts")
+        .then()
+                .statusCode(anyOf(is(200), is(201)))
+                .extract()
+                .path("cartId");
+
+        // Step 2: Create order with cart
+        final String orderPayload = String.format("""
                 {
                     "orderDesc": "Retrieve Test Order",
-                    "orderFee": 99.99
+                    "orderFee": 99.99,
+                    "cart": {
+                        "cartId": %d
+                    }
                 }
-                """;
+                """, cartId);
 
         final Integer orderId = given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
@@ -120,7 +134,7 @@ class OrderCreationE2ETest {
                 .extract()
                 .path("orderId");
 
-        // Step 2: Retrieve order
+        // Step 3: Retrieve order
         given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
@@ -140,8 +154,8 @@ class OrderCreationE2ETest {
                 .get("/app/api/orders")
         .then()
                 .statusCode(200)
-                .body("$", not(empty()))
-                .body("[0].orderId", notNullValue())
-                .body("[0].orderDate", notNullValue());
+                .body("collection", not(empty()))
+                .body("collection[0].orderId", notNullValue())
+                .body("collection[0].orderDate", notNullValue());
     }
 }
