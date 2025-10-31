@@ -53,7 +53,7 @@ spec:
               value: "true"
             # PostgreSQL RDS Configuration - Service-specific database
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=require"
+              value: "jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require"
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
