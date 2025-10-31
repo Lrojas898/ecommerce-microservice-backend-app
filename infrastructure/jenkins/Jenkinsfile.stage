@@ -328,7 +328,7 @@ favourite-service/"
                 sh """
                     docker build -t ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} \
                                  -t ${ECR_REGISTRY}/ecommerce/user-service:staging \
-                                 -f user-service/Dockerfile user-service
+                                 -f user-service/Dockerfile .
                     docker push ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG}
                     docker push ${ECR_REGISTRY}/ecommerce/user-service:staging
                     docker rmi ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} || true
@@ -336,6 +336,79 @@ favourite-service/"
                     docker builder prune -f
                 """
             }
+        }
+
+        stage('Docker Build product-service') {
+            when { expression { env.CHANGED_SERVICES.contains('product-service') } }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/product-service:staging \
+                                 -f product-service/Dockerfile .
+                    docker push ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/ecommerce/product-service:staging
+                    docker rmi ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/product-service:staging || true
+                    docker builder prune -f
+                """
+            }
+        }
+
+        stage('Docker Build order-service') {
+            when { expression { env.CHANGED_SERVICES.contains('order-service') } }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/order-service:staging \
+                                 -f order-service/Dockerfile .
+                    docker push ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/ecommerce/order-service:staging
+                    docker rmi ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/order-service:staging || true
+                    docker builder prune -f
+                """
+            }
+        }
+
+        stage('Docker Build favourite-service') {
+            when { expression { env.CHANGED_SERVICES.contains('favourite-service') } }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/favourite-service:staging \
+                                 -f favourite-service/Dockerfile .
+                    docker push ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/ecommerce/favourite-service:staging
+                    docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:staging || true
+                    docker builder prune -f
+                """
+            }
+        }
+
+        stage('Docker Build payment-service') {
+            when { expression { env.CHANGED_SERVICES.contains('payment-service') } }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/payment-service:staging \
+                                 -f payment-service/Dockerfile .
+                    docker push ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG}
+                    docker push ${ECR_REGISTRY}/ecommerce/payment-service:staging
+                    docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} || true
+                    docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:staging || true
+                    docker builder prune -f
+                """
+            }
+        }
+
+        stage('Docker Build shipping-service') {
+            when { expression { env.CHANGED_SERVICES.contains('shipping-service') } }
+            steps {
+                sh """
+                    docker build -t ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} \
+                                 -t ${ECR_REGISTRY}/ecommerce/shipping-service:staging \
+                                 -f shipping-service/Dockerfile .
         }
 
         stage('Docker Build product-service') {
