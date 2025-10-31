@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
+import com.selimhorri.app.utils.AuthTestUtils;
+
 import io.restassured.RestAssured;
 
 
@@ -33,15 +35,20 @@ class ProductBrowsingE2ETest {
 
     private static final String BASE_URL = System.getProperty("test.base.url", 
             System.getenv().getOrDefault("API_URL", "http://localhost:80"));
+    
+    private String authToken;
 
     @BeforeAll
     void setup() {
         RestAssured.baseURI = BASE_URL;
+        // Authenticate once before all tests
+        authToken = AuthTestUtils.authenticateAsTestUser();
     }
 
     @Test
     void browseAllProducts_shouldReturnProductList() {
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/products")
         .then()
@@ -56,6 +63,7 @@ class ProductBrowsingE2ETest {
     void viewProductDetails_shouldReturnCompleteProductInfo() {
         // Step 1: Get first product ID
         final Integer productId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/products")
         .then()
@@ -65,6 +73,7 @@ class ProductBrowsingE2ETest {
 
         // Step 2: View product details
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/products/" + productId)
         .then()
@@ -80,6 +89,7 @@ class ProductBrowsingE2ETest {
     void browseProductsByCategory_shouldFilterCorrectly() {
         // Step 1: Get all categories
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/categories")
         .then()
@@ -88,6 +98,7 @@ class ProductBrowsingE2ETest {
 
         // Step 2: Get category ID
         final Integer categoryId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/categories")
         .then()
@@ -97,6 +108,7 @@ class ProductBrowsingE2ETest {
 
         // Step 3: Get all products (search by category not supported yet)
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/products")
         .then()
@@ -118,6 +130,7 @@ class ProductBrowsingE2ETest {
                 """, userId, productId);
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType("application/json")
                 .body(favouritePayload)
         .when()
@@ -134,6 +147,7 @@ class ProductBrowsingE2ETest {
         final Integer userId = 1;
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/favourites/user/" + userId)
         .then()

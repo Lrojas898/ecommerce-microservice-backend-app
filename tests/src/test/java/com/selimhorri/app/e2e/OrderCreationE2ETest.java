@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
+import com.selimhorri.app.utils.AuthTestUtils;
+
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 
@@ -32,10 +34,14 @@ class OrderCreationE2ETest {
 
     private static final String BASE_URL = System.getProperty("test.base.url", 
             System.getenv().getOrDefault("API_URL", "http://localhost:80"));
+    
+    private String authToken;
 
     @BeforeAll
     void setup() {
         RestAssured.baseURI = BASE_URL;
+        // Authenticate once before all tests
+        authToken = AuthTestUtils.authenticateAsTestUser();
     }
 
     @Test
@@ -47,6 +53,7 @@ class OrderCreationE2ETest {
                 """;
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(cartPayload)
         .when()
@@ -60,6 +67,7 @@ class OrderCreationE2ETest {
     void createOrderFromCart_shouldSucceed() {
         // Step 1: Create cart
         final Integer cartId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body("{}")
         .when()
@@ -79,6 +87,7 @@ class OrderCreationE2ETest {
                 """, cartId);
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(orderPayload)
         .when()
@@ -101,6 +110,7 @@ class OrderCreationE2ETest {
                 """;
 
         final Integer orderId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(orderPayload)
         .when()
@@ -112,6 +122,7 @@ class OrderCreationE2ETest {
 
         // Step 2: Retrieve order
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/orders/" + orderId)
         .then()
@@ -124,6 +135,7 @@ class OrderCreationE2ETest {
     @Test
     void getAllOrders_shouldReturnOrderList() {
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/orders")
         .then()

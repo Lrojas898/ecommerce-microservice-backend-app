@@ -53,7 +53,10 @@ spec:
               value: "true"
             # PostgreSQL RDS Configuration - Service-specific database
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=require"
+              valueFrom:
+                secretKeyRef:
+                  name: user-service-postgres-secret
+                  key: POSTGRES_URL
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -64,32 +67,17 @@ spec:
                 secretKeyRef:
                   name: user-service-postgres-secret
                   key: POSTGRES_PASSWORD
-            - name: POSTGRES_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: user-service-postgres-secret
-                  key: POSTGRES_HOST
-            - name: POSTGRES_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: user-service-postgres-secret
-                  key: POSTGRES_PORT
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: user-service-postgres-secret
-                  key: POSTGRES_DB
             - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
               value: "org.postgresql.Driver"
             - name: SPRING_JPA_DATABASE_PLATFORM
               value: "org.hibernate.dialect.PostgreSQLDialect"
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "200m"
+              memory: "512Mi"
+              cpu: "100m"
             limits:
-              memory: "1Gi"
-              cpu: "500m"
+              memory: "768Mi"
+              cpu: "300m"
           livenessProbe:
             httpGet:
               path: /user-service/actuator/health

@@ -56,11 +56,11 @@ public class AuthTestUtils {
                 .post("/app/api/authenticate")
                 .then()
                 .statusCode(HttpStatus.OK.value())
-                .body("token", notNullValue())
+                .body("jwtToken", notNullValue())
                 .extract()
                 .response();
                 
-        return response.path("token");
+        return response.path("jwtToken");
     }
     
     /**
