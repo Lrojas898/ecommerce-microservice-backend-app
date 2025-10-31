@@ -290,14 +290,17 @@ pipeline {
                             kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
                             kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
-                            retries=0
-                            until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/${service.toUpperCase()} | grep -q "status" || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
-                                sleep 30
-                                retries=\$((retries + 1))
-                            done
-                            if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
-                                echo "Eureka registration check failed for ${service} after \${MAX_RETRY_COUNT} attempts"
-                                exit 1
+                            # Skip Eureka registration check for infrastructure services (they don't register themselves)
+                            if [ "${service}" != "service-discovery" ] && [ "${service}" != "cloud-config" ]; then
+                                retries=0
+                                until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/${service.toUpperCase()} | grep -q "status" || [ \$retries -ge ${MAX_RETRY_COUNT} ]; do
+                                    sleep 30
+                                    retries=\$((retries + 1))
+                                done
+                                if [ \$retries -ge ${MAX_RETRY_COUNT} ]; then
+                                    echo "Eureka registration check failed for ${service} after \${MAX_RETRY_COUNT} attempts"
+                                    exit 1
+                                fi
                             fi
                         """
                     }
