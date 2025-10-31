@@ -258,7 +258,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/service-discovery:latest \\
-                                     -f service-discovery/Dockerfile .
+                                     -f service-discovery/Dockerfile service-discovery
                         docker push ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/service-discovery:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/service-discovery:${IMAGE_TAG} || true
@@ -275,7 +275,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/cloud-config:latest \\
-                                     -f cloud-config/Dockerfile .
+                                     -f cloud-config/Dockerfile cloud-config
                         docker push ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/cloud-config:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/cloud-config:${IMAGE_TAG} || true
@@ -292,7 +292,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/proxy-client:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/proxy-client:latest \\
-                                     -f proxy-client/Dockerfile .
+                                     -f proxy-client/Dockerfile proxy-client
                         docker push ${ECR_REGISTRY}/ecommerce/proxy-client:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/proxy-client:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/proxy-client:${IMAGE_TAG} || true
@@ -309,7 +309,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/user-service:latest \\
-                                     -f user-service/Dockerfile .
+                                     -f user-service/Dockerfile user-service
                         docker push ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/user-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/user-service:${IMAGE_TAG} || true
@@ -326,7 +326,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/product-service:latest \\
-                                     -f product-service/Dockerfile .
+                                     -f product-service/Dockerfile product-service
                         docker push ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/product-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/product-service:${IMAGE_TAG} || true
@@ -343,7 +343,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/order-service:latest \\
-                                     -f order-service/Dockerfile .
+                                     -f order-service/Dockerfile order-service
                         docker push ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/order-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/order-service:${IMAGE_TAG} || true
@@ -360,7 +360,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/favourite-service:latest \\
-                                     -f favourite-service/Dockerfile .
+                                     -f favourite-service/Dockerfile favourite-service
                         docker push ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/favourite-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/favourite-service:${IMAGE_TAG} || true
@@ -377,7 +377,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/payment-service:latest \\
-                                     -f payment-service/Dockerfile .
+                                     -f payment-service/Dockerfile payment-service
                         docker push ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/payment-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/payment-service:${IMAGE_TAG} || true
@@ -394,7 +394,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/shipping-service:latest \\
-                                     -f shipping-service/Dockerfile .
+                                     -f shipping-service/Dockerfile shipping-service
                         docker push ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/shipping-service:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/shipping-service:${IMAGE_TAG} || true
@@ -411,7 +411,7 @@ favourite-service/"
                     sh """
                         docker build -t ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} \\
                                      -t ${ECR_REGISTRY}/ecommerce/api-gateway:latest \\
-                                     -f api-gateway/Dockerfile .
+                                     -f api-gateway/Dockerfile api-gateway
                         docker push ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG}
                         docker push ${ECR_REGISTRY}/ecommerce/api-gateway:latest
                         docker rmi ${ECR_REGISTRY}/ecommerce/api-gateway:${IMAGE_TAG} || true
