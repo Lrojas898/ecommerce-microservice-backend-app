@@ -1,10 +1,10 @@
 package com.selimhorri.app.utils;
 
-import io.restassured.response.Response;
+import static org.hamcrest.Matchers.notNullValue;
 import org.springframework.http.HttpStatus;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.notNullValue;
+import io.restassured.response.Response;
 
 /**
  * Authentication utilities for E2E tests
@@ -83,5 +83,35 @@ public class AuthTestUtils {
      */
     public static String createAuthHeader(String token) {
         return "Bearer " + token;
+    }
+    
+    /**
+     * Get authenticated user's ID by username
+     * Uses dedicated endpoint: GET /app/api/users/username/{username}
+     * @param token JWT authentication token
+     * @param username username to search for
+     * @return user ID
+     */
+    public static Integer getUserIdByUsername(String token, String username) {
+        Response response = given()
+                .header("Authorization", createAuthHeader(token))
+                .when()
+                .get("/app/api/users/username/" + username)
+                .then()
+                .statusCode(HttpStatus.OK.value())
+                .body("userId", notNullValue())
+                .extract()
+                .response();
+        
+        return response.path("userId");
+    }
+    
+    /**
+     * Get test user's ID
+     * @param token JWT authentication token
+     * @return test user's ID
+     */
+    public static Integer getTestUserId(String token) {
+        return getUserIdByUsername(token, TEST_USERNAME);
     }
 }

@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
+import com.selimhorri.app.utils.AuthTestUtils;
+
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 
@@ -32,22 +34,30 @@ class PaymentProcessingE2ETest {
 
     private static final String BASE_URL = System.getenv().getOrDefault("API_URL", "http://ab025653f4c6b47648ad4cb30e326c96-149903195.us-east-2.elb.amazonaws.com");
 
+    private String authToken;
+    private Integer testUserId;
+
     @BeforeAll
     void setup() {
         RestAssured.baseURI = BASE_URL;
+        // Authenticate once for all tests
+        authToken = AuthTestUtils.authenticateAsTestUser();
+        testUserId = AuthTestUtils.getTestUserId(authToken);
     }
 
     @Test
     void createPaymentForOrder_shouldSucceed() {
         // Step 1: Create an order
-        final String orderPayload = """
+        final String orderPayload = String.format("""
                 {
+                    "userId": %d,
                     "orderDesc": "Payment Test Order",
                     "orderFee": 299.99
                 }
-                """;
+                """, testUserId);
 
         final Integer orderId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(orderPayload)
         .when()
@@ -66,6 +76,7 @@ class PaymentProcessingE2ETest {
                 """, orderId);
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(paymentPayload)
         .when()
@@ -81,8 +92,9 @@ class PaymentProcessingE2ETest {
     void processPayment_shouldUpdateStatus() {
         // Step 1: Create order
         final Integer orderId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{\"orderDesc\":\"Quick Order\",\"orderFee\":49.99}")
+                .body(String.format("{\"userId\":%d,\"orderDesc\":\"Quick Order\",\"orderFee\":49.99}", testUserId))
         .when()
                 .post("/app/api/orders")
         .then()
@@ -92,6 +104,7 @@ class PaymentProcessingE2ETest {
 
         // Step 2: Create payment
         final Integer paymentId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"isPayed\":false}", orderId))
         .when()
@@ -111,6 +124,7 @@ class PaymentProcessingE2ETest {
                 """, paymentId, orderId);
 
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(updatePayload)
         .when()
@@ -124,26 +138,31 @@ class PaymentProcessingE2ETest {
     void getPaymentWithOrderDetails_shouldReturnCompleteInfo() {
         // Step 1: Create order
         final Integer orderId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{\"orderDesc\":\"Details Test\",\"orderFee\":199.99}")
+                .body(String.format("{\"userId\":%d,\"orderDesc\":\"Details Test\",\"orderFee\":199.99}", testUserId))
         .when()
                 .post("/app/api/orders")
         .then()
+                .statusCode(anyOf(is(200), is(201)))
                 .extract()
                 .path("orderId");
 
         // Step 2: Create payment
         final Integer paymentId = given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
         .when()
                 .post("/app/api/payments")
         .then()
+                .statusCode(anyOf(is(200), is(201)))
                 .extract()
                 .path("paymentId");
 
         // Step 3: Get payment with order details
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/payments/" + paymentId)
         .then()
@@ -156,6 +175,7 @@ class PaymentProcessingE2ETest {
     @Test
     void getAllPayments_shouldReturnPaymentList() {
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
         .when()
                 .get("/app/api/payments")
         .then()

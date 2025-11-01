@@ -36,18 +36,21 @@ class OrderCreationE2ETest {
             System.getenv().getOrDefault("API_URL", "http://localhost:80"));
     
     private String authToken;
+    private Integer testUserId;
 
     @BeforeAll
     void setup() {
         RestAssured.baseURI = BASE_URL;
         // Authenticate once before all tests
         authToken = AuthTestUtils.authenticateAsTestUser();
+        // Get the authenticated user's ID
+        testUserId = AuthTestUtils.getTestUserId(authToken);
     }
 
     @Test
     void createCart_shouldReturnNewCart() {
-        // For creating a cart, we need userId - using testuser's ID (1)
-        final String cartPayload = "{\"userId\": 1}";
+        // For creating a cart, we need userId - using authenticated user's ID
+        final String cartPayload = String.format("{\"userId\": %d}", testUserId);
 
         given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
@@ -66,7 +69,7 @@ class OrderCreationE2ETest {
         final Integer cartId = given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{\"userId\": 1}")
+                .body(String.format("{\"userId\": %d}", testUserId))
         .when()
                 .post("/app/api/carts")
         .then()
@@ -104,7 +107,7 @@ class OrderCreationE2ETest {
         final Integer cartId = given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body("{\"userId\": 1}")
+                .body(String.format("{\"userId\": %d}", testUserId))
         .when()
                 .post("/app/api/carts")
         .then()
