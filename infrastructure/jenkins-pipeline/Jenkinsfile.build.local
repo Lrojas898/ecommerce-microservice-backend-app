@@ -137,10 +137,11 @@ pipeline {
                         echo "  Version: ${env.VERSION_TAG}"
                         echo "========================================="
 
-                        # Build all services in parallel (2 threads per CPU core)
-                        mvn clean package -DskipTests -T 2C
+                        # Build and install all services in parallel (2 threads per CPU core)
+                        # Using 'install' to make artifacts available for inter-module dependencies
+                        mvn clean install -DskipTests -T 2C
 
-                        echo "✓ All services compiled successfully"
+                        echo "✓ All services compiled and installed successfully"
                     """
                 }
             }
