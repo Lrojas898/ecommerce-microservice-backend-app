@@ -140,15 +140,21 @@ Duration: ${params.RUN_TIME}
                         sh """
                             cd tests/performance
 
+                            # Create virtual environment if it doesn't exist
+                            if [ ! -d "venv" ]; then
+                                echo "Creating Python virtual environment..."
+                                python3 -m venv venv
+                            fi
+
                             # Activate virtual environment
                             . venv/bin/activate
 
-                            locust -f locustfile.py ${params.TEST_TYPE} \\
-                                --host=${env.API_GATEWAY_URL} \\
-                                --users ${params.USERS} \\
-                                --spawn-rate ${params.SPAWN_RATE} \\
-                                --run-time ${params.RUN_TIME} \\
-                                ${headlessFlag} \\
+                            locust -f locustfile.py ${params.TEST_TYPE} \
+                                --host=${env.API_GATEWAY_URL} \
+                                --users ${params.USERS} \
+                                --spawn-rate ${params.SPAWN_RATE} \
+                                --run-time ${params.RUN_TIME} \
+                                ${headlessFlag} \
                                 ${reportFlags}
 
                             deactivate
