@@ -12,6 +12,7 @@ import com.selimhorri.app.domain.User;
 import com.selimhorri.app.dto.UserDto;
 import com.selimhorri.app.exception.wrapper.UserObjectNotFoundException;
 import com.selimhorri.app.helper.UserMappingHelper;
+import com.selimhorri.app.repository.CredentialRepository;
 import com.selimhorri.app.repository.UserRepository;
 import com.selimhorri.app.service.UserService;
 
@@ -23,9 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
-
+	
 	private final UserRepository userRepository;
-	private final com.selimhorri.app.repository.CredentialRepository credentialRepository;
+	private final CredentialRepository credentialRepository;
 	private final PasswordEncoder passwordEncoder;
 	
 	@Override
@@ -50,23 +51,28 @@ public class UserServiceImpl implements UserService {
 	public UserDto save(final UserDto userDto) {
 		log.info("*** UserDto, service; save user *");
 		User user = UserMappingHelper.map(userDto);
-
-		// Extract credential before saving user (as it won't cascade from non-owner side)
-		com.selimhorri.app.domain.Credential credential = user.getCredential();
-
-		// Temporarily remove credential to save user first
+		
+		// No password encryption - storing plain text for development
+		// Password is already set from UserMappingHelper
+		
+		// Extract credential before saving (to avoid detached entity issues)
+		var credential = user.getCredential();
+		
+		// Temporarily remove credential from user to save user first
 		user.setCredential(null);
-
-		// Save user first (to get the generated user_id)
+		
+		// Save user first to get the generated ID
 		User savedUser = this.userRepository.save(user);
-
+		
 		// Now set the user reference in credential and save it
 		if (credential != null) {
 			credential.setUser(savedUser);
-			com.selimhorri.app.domain.Credential savedCredential = this.credentialRepository.save(credential);
-			savedUser.setCredential(savedCredential);
+			this.credentialRepository.save(credential);
 		}
-
+		
+		// Set credential back for the return mapping
+		savedUser.setCredential(credential);
+		
 		return UserMappingHelper.map(savedUser);
 	}
 	

@@ -31,6 +31,16 @@ public interface UserMappingHelper {
 	}
 	
 	public static User map(final UserDto userDto) {
+		// Create User first
+		User user = User.builder()
+				.userId(userDto.getUserId())
+				.firstName(userDto.getFirstName())
+				.lastName(userDto.getLastName())
+				.imageUrl(userDto.getImageUrl())
+				.email(userDto.getEmail())
+				.phone(userDto.getPhone())
+				.build();
+		
 		// Handle both cases: nested credential object or flat username/password fields
 		Credential credential;
 		if (userDto.getCredentialDto() != null) {
@@ -57,20 +67,13 @@ public interface UserMappingHelper {
 				.isCredentialsNonExpired(true)
 				.build();
 		}
-
-		User user = User.builder()
-				.userId(userDto.getUserId())
-				.firstName(userDto.getFirstName())
-				.lastName(userDto.getLastName())
-				.imageUrl(userDto.getImageUrl())
-				.email(userDto.getEmail())
-				.phone(userDto.getPhone())
-				.credential(credential)
-				.build();
-
-		// Set bidirectional relationship
+		
+		// Establish bidirectional relationship
+		// CRITICAL: Since Credential is the owner side (@JoinColumn on user_id),
+		// we must set the User reference in Credential for JPA to persist properly
 		credential.setUser(user);
-
+		user.setCredential(credential);
+		
 		return user;
 	}
 	

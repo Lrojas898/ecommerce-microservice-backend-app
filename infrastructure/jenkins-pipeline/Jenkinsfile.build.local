@@ -1,0 +1,375 @@
+pipeline {
+    agent any
+
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref'],
+                [key: 'repository_name', value: '$.repository.name'],
+                [key: 'pusher_name', value: '$.pusher.name']
+            ],
+            causeString: 'Triggered by GitHub push to $ref by $pusher_name',
+            token: 'ecommerce-build-webhook-token',
+            tokenCredentialId: '',
+            printContributedVariables: true,
+            printPostContent: true,
+            silentResponse: false
+        )
+    }
+
+    environment {
+        // Docker Hub Configuration (instead of AWS ECR)
+        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_USER = 'luisrojasc'
+
+        // Version Configuration
+        VERSION = "0.1.0"
+        VERSION_TAG = "v${VERSION}-${BUILD_TIMESTAMP}"
+        BUILD_TIMESTAMP = sh(script: "date +%Y%m%d-%H%M%S", returnStdout: true).trim()
+
+        // Services to build
+        SERVICES = 'service-discovery,cloud-config,proxy-client,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
+
+        // Service port mappings for healthchecks
+        SERVICE_PORTS = 'api-gateway:8080,cloud-config:9296,service-discovery:8761,proxy-client:8080,user-service:8081,product-service:8082,favourite-service:8086,order-service:8083,payment-service:8084,shipping-service:8085'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 60, unit: 'MINUTES')
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Cleanup Docker') {
+            steps {
+                script {
+                    echo "🧹 Cleaning up Docker resources to free disk space..."
+                    sh """
+                        # Remove stopped containers
+                        docker container prune -f || true
+
+                        # Remove dangling images
+                        docker image prune -f || true
+
+                        # Remove unused build cache (keep last 24h)
+                        docker builder prune -f --keep-storage 2GB || true
+
+                        # Show disk usage
+                        df -h /var/lib/docker || true
+                        docker system df || true
+                    """
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "========================================="
+                    echo "  Build & Push to Docker Hub (LOCAL)"
+                    echo "  User: ${DOCKER_USER}"
+                    echo "  Version: ${VERSION_TAG}"
+                    echo "  Commit: ${env.GIT_COMMIT_SHORT}"
+                    echo "========================================="
+                }
+            }
+        }
+
+        stage('Detect Changed Services') {
+            steps {
+                script {
+                    def changedFiles = sh(
+                        script: '''
+                            if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                                git diff --name-only HEAD~1 HEAD
+                            else
+                                echo "pom.xml"
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changedFiles}"
+
+                    def services = env.SERVICES.split(',')
+                    def changedServices = []
+
+                    services.each { service ->
+                        if (changedFiles.contains("${service}/") ||
+                            changedFiles.contains("pom.xml") ||
+                            changedFiles.contains("infrastructure/kubernetes/")) {
+                            changedServices.add(service)
+                        }
+                    }
+
+                    // If no specific service changed but other files did, build all
+                    if (changedServices.isEmpty() && !changedFiles.isEmpty()) {
+                        changedServices = services as List
+                    }
+
+                    if (changedServices.isEmpty()) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error('No services changed - skipping build')
+                    }
+
+                    env.CHANGED_SERVICES = changedServices.join(',')
+                    echo "✓ Services to build: ${env.CHANGED_SERVICES}"
+                }
+            }
+        }
+
+        stage('Build All Services') {
+            steps {
+                script {
+                    echo "🚀 Building ALL services with single Maven command (OPTIMIZED)"
+                    echo "Services: ${env.CHANGED_SERVICES}"
+                    sh """
+                        echo "========================================="
+                        echo "  Maven Multi-Module Build"
+                        echo "  Version: ${env.VERSION_TAG}"
+                        echo "========================================="
+
+                        # Build all services in parallel (2 threads per CPU core)
+                        mvn clean package -DskipTests -T 2C
+
+                        echo "✓ All services compiled successfully"
+                    """
+                }
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                script {
+                    def changedServicesList = env.CHANGED_SERVICES.split(',')
+                    def parallelTests = [:]
+
+                    echo "🧪 Running unit tests for changed services in parallel..."
+
+                    changedServicesList.each { service ->
+                        parallelTests[service] = {
+                            stage("Test ${service}") {
+                                try {
+                                    sh """
+                                        echo "Testing ${service}..."
+                                        mvn test -pl ${service} -q
+                                    """
+                                    echo "✓ ${service} tests passed"
+                                } catch (Exception e) {
+                                    echo "⚠ Tests failed for ${service}: ${e.message}"
+                                    currentBuild.result = 'UNSTABLE'
+                                }
+                            }
+                        }
+                    }
+
+                    // Execute all tests in parallel
+                    parallel parallelTests
+                }
+            }
+            post {
+                always {
+                    // Collect test results
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+
+                    // Publish test coverage if available
+                    publishHTML([
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'target/site/jacoco',
+                        reportFiles: 'index.html',
+                        reportName: 'JaCoCo Coverage Report'
+                    ])
+                }
+            }
+        }
+
+        stage('Docker Hub Login') {
+            steps {
+                script {
+                    echo "🔐 Logging in to Docker Hub..."
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh '''
+                            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+                        '''
+                    }
+                    echo "✓ Docker Hub login successful"
+                }
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    echo "🐳 Building and pushing Docker images for changed services..."
+                    def changedServicesList = env.CHANGED_SERVICES.split(',')
+                    def parallelBuilds = [:]
+
+                    // Create port mapping
+                    def portMap = [:]
+                    env.SERVICE_PORTS.split(',').each { mapping ->
+                        def parts = mapping.split(':')
+                        portMap[parts[0]] = parts[1]
+                    }
+
+                    changedServicesList.each { service ->
+                        def serviceName = service.trim()
+                        def port = portMap[serviceName] ?: '8080'
+
+                        parallelBuilds[serviceName] = {
+                            stage("Build ${serviceName}") {
+                                echo ">>> Building ${serviceName}..."
+
+                                // Create optimized Dockerfile (using pre-compiled JARs)
+                                sh """
+                                    cat > ${serviceName}/Dockerfile.optimized <<'EOF'
+FROM openjdk:11-jre-slim
+WORKDIR /app
+COPY target/${serviceName}-v${env.VERSION}.jar app.jar
+EXPOSE ${port}
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \\
+  CMD curl -f http://localhost:${port}/actuator/health || exit 1
+ENTRYPOINT ["java", "-jar", "app.jar"]
+EOF
+                                """
+
+                                // Build Docker image with multiple tags
+                                sh """
+                                    docker build -f ${serviceName}/Dockerfile.optimized \\
+                                        -t ${DOCKER_USER}/${serviceName}:${VERSION} \\
+                                        -t ${DOCKER_USER}/${serviceName}:${VERSION_TAG} \\
+                                        -t ${DOCKER_USER}/${serviceName}:latest \\
+                                        ${serviceName}/target
+                                """
+
+                                // Push all tags in parallel (3x faster)
+                                sh """#!/bin/bash
+                                    set -e
+
+                                    docker push ${DOCKER_USER}/${serviceName}:${VERSION} &
+                                    PUSH_PID1=\$!
+
+                                    docker push ${DOCKER_USER}/${serviceName}:${VERSION_TAG} &
+                                    PUSH_PID2=\$!
+
+                                    docker push ${DOCKER_USER}/${serviceName}:latest &
+                                    PUSH_PID3=\$!
+
+                                    # Wait for all push operations to complete
+                                    wait \$PUSH_PID1 \$PUSH_PID2 \$PUSH_PID3
+
+                                    echo "✓ All tags pushed successfully for ${serviceName}"
+                                """
+
+                                // Cleanup temporary Dockerfile
+                                sh """
+                                    rm ${serviceName}/Dockerfile.optimized || true
+                                """
+
+                                echo "✓ ${serviceName} built and pushed successfully"
+                            }
+                        }
+                    }
+
+                    // Execute all builds in parallel
+                    parallel parallelBuilds
+                }
+            }
+        }
+
+        stage('Cleanup Docker Images') {
+            steps {
+                script {
+                    echo "🧹 Cleaning up local Docker images..."
+                    def changedServicesList = env.CHANGED_SERVICES.split(',')
+
+                    changedServicesList.each { service ->
+                        sh """
+                            docker rmi ${DOCKER_USER}/${service}:${VERSION} || true
+                            docker rmi ${DOCKER_USER}/${service}:${VERSION_TAG} || true
+                            docker rmi ${DOCKER_USER}/${service}:latest || true
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build Summary') {
+            steps {
+                script {
+                    echo "========================================="
+                    echo "  BUILD SUMMARY"
+                    echo "========================================="
+                    echo "✓ Services built: ${env.CHANGED_SERVICES}"
+                    echo "✓ Version tag: ${VERSION_TAG}"
+                    echo ""
+                    echo "Docker Hub Images:"
+
+                    def changedServicesList = env.CHANGED_SERVICES.split(',')
+                    changedServicesList.each { service ->
+                        echo "  • ${DOCKER_USER}/${service}:${VERSION_TAG}"
+                        echo "    ${DOCKER_USER}/${service}:${VERSION}"
+                        echo "    ${DOCKER_USER}/${service}:latest"
+                    }
+
+                    echo ""
+                    echo "Next steps:"
+                    echo "1. Update K8s manifests: ${DOCKER_USER}/[service]:${VERSION_TAG}"
+                    echo "2. Apply changes: kubectl apply -f infrastructure/kubernetes/base/ -n dev"
+                    echo "3. Verify: kubectl get pods -n dev -w"
+                    echo "========================================="
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo " BUILD SUCCESS"
+                echo "Built and pushed services: ${env.CHANGED_SERVICES}"
+                echo "Version: ${VERSION_TAG}"
+                echo "Commit: ${env.GIT_COMMIT_SHORT}"
+            }
+        }
+        failure {
+            script {
+                echo " BUILD FAILED"
+                echo "Failed services: ${env.CHANGED_SERVICES}"
+            }
+        }
+        unstable {
+            script {
+                echo " BUILD UNSTABLE (some tests failed)"
+                echo "Services: ${env.CHANGED_SERVICES}"
+            }
+        }
+        always {
+            // Clean workspace but preserve Maven cache
+            sh '''
+                find . -type d -name target -prune -exec rm -rf {} + || true
+                find . -name "Dockerfile.optimized" -delete || true
+                docker system prune -f || true
+            '''
+
+            // Archive build artifacts
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+
+            // Delete old builds
+            deleteDir()
+        }
+    }
+}

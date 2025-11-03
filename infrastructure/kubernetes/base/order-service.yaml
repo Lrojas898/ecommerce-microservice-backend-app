@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: luisrojasc/order-service:v0.1.0-20251102-173750
+          image: luisrojasc/order-service:v0.1.0-20251102-224250
           imagePullPolicy: Always
           ports:
             - containerPort: 8083
@@ -51,6 +51,14 @@ spec:
             - name: EUREKA_CLIENT_REGISTER_WITH_EUREKA
               value: "true"
             - name: EUREKA_CLIENT_FETCH_REGISTRY
+              value: "true"
+            - name: EUREKA_INSTANCE_PREFERIPADDRESS
+              value: "false"
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "order-service"
+            - name: EUREKA_INSTANCE_NONSECUREPORT
+              value: "8083"
+            - name: EUREKA_INSTANCE_NONSECUREPORTENABLED
               value: "true"
             # H2 Database Configuration for Development
             # Database config is handled by dev profile in application-dev.yml

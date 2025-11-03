@@ -28,3 +28,10 @@ ssh-credentials
 job-dsl
 ansicolor
 htmlpublisher
+
+generic-webhook-trigger
+junit
+aws-credentials
+cloudbees-folder
+pipeline-groovy-lib
+kubernetes-cli

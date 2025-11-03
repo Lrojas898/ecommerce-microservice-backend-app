@@ -17,7 +17,6 @@ import javax.servlet.http.HttpServletRequest;
  * to downstream microservices (order-service, payment-service, etc.)
  */
 @Slf4j
-@Component
 public class FeignClientInterceptor implements RequestInterceptor {
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
