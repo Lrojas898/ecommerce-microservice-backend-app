@@ -238,7 +238,7 @@ pipeline {
                                     cat > ${serviceName}/Dockerfile.optimized <<'EOF'
 FROM openjdk:11-jre-slim
 WORKDIR /app
-COPY target/${serviceName}-v${env.VERSION}.jar app.jar
+COPY ${serviceName}-v${env.VERSION}.jar app.jar
 EXPOSE ${port}
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \\
   CMD curl -f http://localhost:${port}/actuator/health || exit 1
