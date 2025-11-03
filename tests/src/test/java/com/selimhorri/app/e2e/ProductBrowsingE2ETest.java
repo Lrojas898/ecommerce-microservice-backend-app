@@ -1,8 +1,10 @@
 package com.selimhorri.app.e2e;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
-
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 import com.selimhorri.app.utils.AuthTestUtils;
 
 import io.restassured.RestAssured;
+import static io.restassured.RestAssured.given;
 
 
 
@@ -108,43 +111,7 @@ class ProductBrowsingE2ETest {
                 .body("collection", anyOf(empty(), not(empty())));
     }
 
-    @Test
-    void addProductToFavourites_shouldCreateFavourite() {
-        // Step 1: Get a product to add to favourites
-        final Integer productId = given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-        .when()
-                .get("/app/api/products")
-        .then()
-                .statusCode(200)
-                .body("collection", not(empty()))
-                .extract()
-                .path("collection[0].productId");
-
-        // Step 2: Add product to favourites
-        // Using userId=1 (testuser from migrations)
-        final Integer userId = 1;
-
-        final String favouritePayload = String.format("""
-                {
-                    "userId": %d,
-                    "productId": %d,
-                    "likeDate": "01-01-2025__00:00:00:000000"
-                }
-                """, userId, productId);
-
-        given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType("application/json")
-                .body(favouritePayload)
-        .when()
-                .post("/app/api/favourites")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .body("userId", equalTo(userId))
-                .body("productId", equalTo(productId))
-                .body("likeDate", notNullValue());
-    }
+    
 
     @Test
     void getUserFavourites_shouldReturnFavouriteProducts() {

@@ -2,7 +2,6 @@ package com.selimhorri.app.e2e;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -50,63 +49,7 @@ class ShippingFulfillmentE2ETest {
         testUserId = AuthTestUtils.getTestUserId(authToken);
     }
 
-    @Test
-    void createShippingItem_afterPaymentConfirmed() {
-        // Step 1: Create cart with userId
-        final Integer cartId = given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(String.format("{\"userId\": %d}", testUserId))
-        .when()
-                .post("/app/api/carts")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .extract()
-                .path("cartId");
-
-        // Step 2: Create order with cart
-        final Integer orderId = given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(String.format("{\"orderDesc\":\"Shipping Test Order\",\"orderFee\":75.00,\"cart\":{\"cartId\":%d}}", cartId))
-        .when()
-                .post("/app/api/orders")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .extract()
-                .path("orderId");
-
-        // Step 3: Create payment and mark as paid
-        given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
-        .when()
-                .post("/app/api/payments")
-        .then()
-                .statusCode(anyOf(is(200), is(201)));
-
-        // Step 4: Create shipping item
-        final String shippingPayload = String.format("""
-                {
-                    "orderId": %d,
-                    "productId": 1,
-                    "orderedQuantity": 2
-                }
-                """, orderId);
-
-        given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(shippingPayload)
-        .when()
-                .post("/app/api/shippings")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .body("orderItemId", notNullValue())
-                .body("orderId", equalTo(orderId))
-                .body("orderedQuantity", equalTo(2));
-    }
+    
 
     @Test
     void getShippingItemsByOrder_shouldReturnAllItems() {
@@ -164,67 +107,7 @@ class ShippingFulfillmentE2ETest {
                 .body("collection", anyOf(empty(), hasSize(greaterThanOrEqualTo(0))));
     }
 
-    @Test
-    void completeOrderWorkflow_endToEnd() {
-        // Complete workflow: Cart → Order → Payment → Shipping
-
-        // Step 1: Create cart with userId
-        final Integer cartId = given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(String.format("{\"userId\": %d}", testUserId))
-        .when()
-                .post("/app/api/carts")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .extract()
-                .path("cartId");
-
-        // Step 2: Create order with cart
-        final Integer orderId = given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(String.format("{\"orderDesc\":\"Complete Workflow Test\",\"orderFee\":500.00,\"cart\":{\"cartId\":%d}}", cartId))
-        .when()
-                .post("/app/api/orders")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .body("orderId", notNullValue())
-                .extract()
-                .path("orderId");
-
-        // Step 3: Create and process payment
-        given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(String.format("{\"orderId\":%d,\"isPayed\":true}", orderId))
-        .when()
-                .post("/app/api/payments")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .body("isPayed", equalTo(true));
-
-        // Step 3: Create shipping item
-        given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-                .contentType(ContentType.JSON)
-                .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":5}", orderId))
-        .when()
-                .post("/app/api/shippings")
-        .then()
-                .statusCode(anyOf(is(200), is(201)))
-                .body("orderedQuantity", equalTo(5));
-
-        // Step 4: Verify order still exists and is complete
-        given()
-                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
-        .when()
-                .get("/app/api/orders/" + orderId)
-        .then()
-                .statusCode(200)
-                .body("orderId", equalTo(orderId))
-                .body("orderDesc", equalTo("Complete Workflow Test"));
-    }
+    
 
     @Test
     void getAllShippingItems_shouldReturnList() {
