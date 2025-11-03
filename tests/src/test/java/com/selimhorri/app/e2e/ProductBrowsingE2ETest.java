@@ -129,7 +129,7 @@ class ProductBrowsingE2ETest {
                 {
                     "userId": %d,
                     "productId": %d,
-                    "likeDate": "2025-01-01 00:00:00"
+                    "likeDate": "01-01-2025__00:00:00:000000"
                 }
                 """, userId, productId);
 

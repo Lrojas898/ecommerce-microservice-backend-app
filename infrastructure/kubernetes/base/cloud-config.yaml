@@ -32,7 +32,8 @@ spec:
     spec:
       containers:
         - name: cloud-config
-          image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/cloud-config:latest
+          image: luisrojasc/cloud-config:v0.1.0-20251102-160100
+          imagePullPolicy: Always
           ports:
             - containerPort: 9296
               name: http
@@ -40,7 +41,7 @@ spec:
             - name: SERVER_PORT
               value: "9296"
             - name: SPRING_PROFILES_ACTIVE
-              value: "default"
+              value: "dev"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
               value: "http://service-discovery:8761/eureka/"
             - name: EUREKA_CLIENT_ENABLED

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import com.selimhorri.app.exception.payload.ExceptionMsg;
 import com.selimhorri.app.exception.wrapper.CredentialNotFoundException;
 import com.selimhorri.app.exception.wrapper.FavouriteNotFoundException;
+import com.selimhorri.app.exception.wrapper.IllegalAuthenticationCredentialsException;
 import com.selimhorri.app.exception.wrapper.UserObjectNotFoundException;
 import com.selimhorri.app.exception.wrapper.VerificationTokenNotFoundException;
 
@@ -38,15 +39,15 @@ public class ApiExceptionHandler {
 		log.info("**ApiExceptionHandler controller, handle feign proxy exception*\n");
 		log.error("**Feign exception details: status={}, message={}, content={}*\n",
 			e.status(), e.getMessage(), e.contentUTF8());
-		final var badRequest = HttpStatus.BAD_REQUEST;
+		final var httpStatus = HttpStatus.valueOf(e.status());
 
 		return new ResponseEntity<>(
 				ExceptionMsg.builder()
 					.msg(e.contentUTF8())
-					.httpStatus(badRequest)
+					.httpStatus(httpStatus)
 					.timestamp(ZonedDateTime
 							.now(ZoneId.systemDefault()))
-					.build(), badRequest);
+					.build(), httpStatus);
 	}
 	
 	@ExceptionHandler(value = {
@@ -65,6 +66,23 @@ public class ApiExceptionHandler {
 					.timestamp(ZonedDateTime
 							.now(ZoneId.systemDefault()))
 					.build(), badRequest);
+	}
+	
+	@ExceptionHandler(value = {
+		IllegalAuthenticationCredentialsException.class
+	})
+	public ResponseEntity<ExceptionMsg> handleAuthenticationException(final IllegalAuthenticationCredentialsException e) {
+		
+		log.warn("**ApiExceptionHandler controller, handle authentication exception: {}*\n", e.getMessage());
+		final var unauthorized = HttpStatus.UNAUTHORIZED;
+		
+		return new ResponseEntity<>(
+				ExceptionMsg.builder()
+					.msg("Invalid username or password")
+					.httpStatus(unauthorized)
+					.timestamp(ZonedDateTime
+							.now(ZoneId.systemDefault()))
+					.build(), unauthorized);
 	}
 	
 	@ExceptionHandler(value = {

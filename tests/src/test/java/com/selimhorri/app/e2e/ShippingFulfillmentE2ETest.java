@@ -77,7 +77,7 @@ class ShippingFulfillmentE2ETest {
         given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body(String.format("{\"orderDto\":{\"orderId\":%d},\"isPayed\":true}", orderId))
+                .body(String.format("{\"order\":{\"orderId\":%d},\"isPayed\":true}", orderId))
         .when()
                 .post("/app/api/payments")
         .then()
@@ -192,8 +192,9 @@ class ShippingFulfillmentE2ETest {
 
         // Step 3: Create and process payment
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body(String.format("{\"orderDto\":{\"orderId\":%d},\"isPayed\":true}", orderId))
+                .body(String.format("{\"order\":{\"orderId\":%d},\"isPayed\":true}", orderId))
         .when()
                 .post("/app/api/payments")
         .then()
@@ -202,6 +203,7 @@ class ShippingFulfillmentE2ETest {
 
         // Step 4: Create shipping item
         given()
+                .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
                 .body(String.format("{\"orderId\":%d,\"productId\":1,\"orderedQuantity\":5}", orderId))
         .when()

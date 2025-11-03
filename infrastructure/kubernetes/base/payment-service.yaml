@@ -32,7 +32,8 @@ spec:
     spec:
       containers:
         - name: payment-service
-          image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/payment-service:latest
+          image: luisrojasc/payment-service:v0.1.0-20251102-173750
+          imagePullPolicy: Always
           ports:
             - containerPort: 8084
               name: http
@@ -40,7 +41,7 @@ spec:
             - name: SERVER_PORT
               value: "8084"
             - name: SPRING_PROFILES_ACTIVE
-              value: "default"
+              value: "dev"
             - name: SPRING_CONFIG_IMPORT
               value: "optional:configserver:http://cloud-config:9296"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
@@ -52,39 +53,11 @@ spec:
             - name: EUREKA_CLIENT_FETCH_REGISTRY
               value: "true"
             - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
-              value: "true"
-            # PostgreSQL RDS Configuration - Service-specific database
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require"
-            - name: SPRING_DATASOURCE_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: payment-service-postgres-secret
-                  key: POSTGRES_USERNAME
-            - name: SPRING_DATASOURCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: payment-service-postgres-secret
-                  key: POSTGRES_PASSWORD
-            - name: POSTGRES_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: payment-service-postgres-secret
-                  key: POSTGRES_HOST
-            - name: POSTGRES_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: payment-service-postgres-secret
-                  key: POSTGRES_PORT
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: payment-service-postgres-secret
-                  key: POSTGRES_DB
-            - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-              value: "org.postgresql.Driver"
-            - name: SPRING_JPA_DATABASE_PLATFORM
-              value: "org.hibernate.dialect.PostgreSQLDialect"
+              value: "false"
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "payment-service"
+            # H2 Database Configuration for Development
+            # Database config is handled by dev profile in application-dev.yml
           resources:
             requests:
               memory: "1Gi"

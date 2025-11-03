@@ -9,9 +9,6 @@ management:
         include: "*"
 
 logging:
-  file:
-    name: src/main/resources/script/prod_log.log
-    clean-history-on-start: false
   level:
     org:
       hibernate:

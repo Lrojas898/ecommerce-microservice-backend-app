@@ -42,7 +42,10 @@ eureka:
     register-with-eureka: ${EUREKA_CLIENT_REGISTER_WITH_EUREKA:true}
     fetch-registry: ${EUREKA_CLIENT_FETCH_REGISTRY:true}
   instance:
-    prefer-ip-address: true
+    prefer-ip-address: false
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:shipping-service}
+    non-secure-port: 8085
+    non-secure-port-enabled: true
 
 
 

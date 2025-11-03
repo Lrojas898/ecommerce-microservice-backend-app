@@ -32,7 +32,8 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/user-service:latest
+          image: luisrojasc/user-service:v0.1.0-20251102-160100
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
               name: http
@@ -40,7 +41,7 @@ spec:
             - name: SERVER_PORT
               value: "8081"
             - name: SPRING_PROFILES_ACTIVE
-              value: "default"
+              value: "dev"
             - name: SPRING_CONFIG_IMPORT
               value: "optional:configserver:http://cloud-config:9296"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
@@ -51,26 +52,8 @@ spec:
               value: "true"
             - name: EUREKA_CLIENT_FETCH_REGISTRY
               value: "true"
-            # PostgreSQL RDS Configuration - Service-specific database
-            - name: SPRING_DATASOURCE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: user-service-postgres-secret
-                  key: POSTGRES_URL
-            - name: SPRING_DATASOURCE_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: user-service-postgres-secret
-                  key: POSTGRES_USERNAME
-            - name: SPRING_DATASOURCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: user-service-postgres-secret
-                  key: POSTGRES_PASSWORD
-            - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-              value: "org.postgresql.Driver"
-            - name: SPRING_JPA_DATABASE_PLATFORM
-              value: "org.hibernate.dialect.PostgreSQLDialect"
+            # H2 Database Configuration for Development
+            # Database config is handled by dev profile in application-dev.yml
           resources:
             requests:
               memory: "512Mi"

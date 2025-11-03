@@ -32,7 +32,8 @@ spec:
     spec:
       containers:
         - name: shipping-service
-          image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/shipping-service:latest
+          image: luisrojasc/shipping-service:v0.1.0-20251102-173750
+          imagePullPolicy: Always
           ports:
             - containerPort: 8085
               name: http
@@ -40,7 +41,7 @@ spec:
             - name: SERVER_PORT
               value: "8085"
             - name: SPRING_PROFILES_ACTIVE
-              value: "default"
+              value: "dev"
             - name: SPRING_CONFIG_IMPORT
               value: "optional:configserver:http://cloud-config:9296"
             - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE

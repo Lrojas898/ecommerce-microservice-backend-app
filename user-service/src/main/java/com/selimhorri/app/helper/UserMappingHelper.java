@@ -57,8 +57,8 @@ public interface UserMappingHelper {
 				.isCredentialsNonExpired(true)
 				.build();
 		}
-		
-		return User.builder()
+
+		User user = User.builder()
 				.userId(userDto.getUserId())
 				.firstName(userDto.getFirstName())
 				.lastName(userDto.getLastName())
@@ -67,6 +67,11 @@ public interface UserMappingHelper {
 				.phone(userDto.getPhone())
 				.credential(credential)
 				.build();
+
+		// Set bidirectional relationship
+		credential.setUser(user);
+
+		return user;
 	}
 	
 	

@@ -1,6 +1,6 @@
 
 server:
-  port: 8400
+  port: 8084
 
 management:
   endpoints:
@@ -32,8 +32,10 @@ spring:
 
 eureka:
   instance:
-    port: 8400
-    non-secure-port: 8400
+    prefer-ip-address: false
+    hostname: payment-service
+    port: 8084
+    non-secure-port: 8084
 
 logging:
   level:

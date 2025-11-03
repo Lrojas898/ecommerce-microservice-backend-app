@@ -17,6 +17,15 @@ spring:
             connectTimeout: 10000
             readTimeout: 10000
             loggerLevel: FULL
+      # Enable request/response compression
+      compression:
+        request:
+          enabled: true
+        response:
+          enabled: true
+      # Configure Hystrix to use SEMAPHORE isolation for thread context propagation
+      hystrix:
+        enabled: false
     loadbalancer:
       ribbon:
         enabled: false

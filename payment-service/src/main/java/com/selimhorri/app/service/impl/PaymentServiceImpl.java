@@ -66,8 +66,19 @@ public class PaymentServiceImpl implements PaymentService {
 	@Override
 	public PaymentDto update(final PaymentDto paymentDto) {
 		log.info("*** PaymentDto, service; update payment *");
-		return PaymentMappingHelper.map(this.paymentRepository
-				.save(PaymentMappingHelper.map(paymentDto)));
+		// Fetch existing payment to preserve createdAt
+		var existingPayment = this.paymentRepository.findById(paymentDto.getPaymentId())
+				.orElseThrow(() -> new PaymentNotFoundException(
+						String.format("Payment with id: %d not found", paymentDto.getPaymentId())));
+
+		// Update only the fields that should change
+		existingPayment.setIsPayed(paymentDto.getIsPayed());
+		existingPayment.setPaymentStatus(paymentDto.getPaymentStatus());
+		if (paymentDto.getOrderDto() != null) {
+			existingPayment.setOrderId(paymentDto.getOrderDto().getOrderId());
+		}
+
+		return PaymentMappingHelper.map(this.paymentRepository.save(existingPayment));
 	}
 	
 	@Override

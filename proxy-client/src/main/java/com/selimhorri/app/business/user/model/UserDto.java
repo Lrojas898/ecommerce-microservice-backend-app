@@ -24,6 +24,13 @@ public class UserDto {
 	private String email;
 	private String phone;
 	
+	// Flat fields for registration (username/password sent directly)
+	@JsonInclude(value = Include.NON_NULL)
+	private String username;
+	
+	@JsonInclude(value = Include.NON_NULL)
+	private String password;
+	
 	@JsonInclude(value = Include.NON_NULL)
 	private Set<AddressDto> addressDtos;
 	

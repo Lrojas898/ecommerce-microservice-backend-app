@@ -1,0 +1,325 @@
+pipeline {
+    agent any
+
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref'],
+                [key: 'repository_name', value: '$.repository.name'],
+                [key: 'pusher_name', value: '$.pusher.name']
+            ],
+            causeString: 'Triggered by GitHub push to $ref by $pusher_name',
+            token: 'ecommerce-build-webhook-token',
+            tokenCredentialId: '',
+            printContributedVariables: true,
+            printPostContent: true,
+            silentResponse: false
+        )
+    }
+
+    environment {
+        AWS_REGION = 'us-east-2'
+        AWS_ACCOUNT_ID = '020951019497'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        VERSION = "0.1.0"
+        SERVICES = 'service-discovery,cloud-config,proxy-client,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
+        AWS_DEFAULT_REGION = "${AWS_REGION}"
+
+        // Service port mappings
+        SERVICE_PORTS = 'service-discovery:8761,cloud-config:9296,api-gateway:8080,proxy-client:8080,user-service:8081,product-service:8082,favourite-service:8086,order-service:8083,payment-service:8084,shipping-service:8085'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 45, unit: 'MINUTES')
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Cleanup Docker') {
+            steps {
+                script {
+                    echo "Cleaning up Docker resources to free disk space..."
+                    sh """
+                        docker container prune -f || true
+                        docker image prune -f || true
+                        docker builder prune -f --keep-storage 2GB || true
+                        df -h /var/lib/docker || true
+                        docker system df || true
+                    """
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+
+        stage('Detect Changed Services') {
+            steps {
+                script {
+                    def changedFiles = sh(
+                        script: '''
+                            if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                                git diff --name-only HEAD~1 HEAD
+                            else
+                                echo "pom.xml"
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changedFiles}"
+
+                    def services = env.SERVICES.split(',')
+                    def changedServices = []
+
+                    services.each { service ->
+                        if (changedFiles.contains("${service}/") ||
+                            changedFiles.contains("pom.xml") ||
+                            changedFiles.contains("infrastructure/")) {
+                            changedServices.add(service)
+                        }
+                    }
+
+                    if (changedServices.isEmpty() && !changedFiles.isEmpty()) {
+                        changedServices = services as List
+                    }
+
+                    if (changedServices.isEmpty()) {
+                        currentBuild.result = 'NOT_BUILT'
+                        error('No services changed - skipping build')
+                    }
+
+                    env.CHANGED_SERVICES = changedServices.join(',')
+                    echo "Services to build: ${env.CHANGED_SERVICES}"
+
+                    // Initialize service versions
+                    def versionsJson = "{"
+                    def servicesArray = env.SERVICES.split(',')
+                    def first = true
+                    servicesArray.each { service ->
+                        def version
+                        if (changedServices.contains(service)) {
+                            version = env.IMAGE_TAG
+                        } else {
+                            try {
+                                version = sh(
+                                    script: """
+                                        aws ecr describe-images --repository-name ecommerce/${service} \
+                                        --region ${env.AWS_REGION} \
+                                        --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' \
+                                        --output text 2>/dev/null || echo 'latest'
+                                    """,
+                                    returnStdout: true
+                                ).trim()
+                            } catch (Exception e) {
+                                echo "Warning: Could not get version for ${service} from ECR, using 'latest'"
+                                version = 'latest'
+                            }
+                        }
+                        if (!first) {
+                            versionsJson += ","
+                        }
+                        first = false
+                        versionsJson += "\"${service}\":\"${version}\""
+                    }
+                    versionsJson += "}"
+                    env.SERVICE_VERSIONS_JSON = versionsJson
+                    echo "Service versions: ${env.SERVICE_VERSIONS_JSON}"
+                }
+            }
+        }
+
+        // OPTIMIZACIÓN 1: Compilar todos los servicios de una vez
+        stage('Build All Changed Services') {
+            steps {
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def modulesStr = changedServices.join(',')
+
+                    echo "Building modules: ${modulesStr}"
+                    sh "mvn package -pl ${modulesStr} -am -DskipTests -T 2"
+                }
+            }
+        }
+
+        // OPTIMIZACIÓN 2: Tests en paralelo
+        stage('Test Changed Services') {
+            steps {
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def parallelTests = [:]
+
+                    changedServices.each { service ->
+                        parallelTests[service] = {
+                            stage("Test ${service}") {
+                                try {
+                                    sh "mvn test -pl ${service}"
+                                } catch (Exception e) {
+                                    echo "Tests failed for ${service}: ${e.message}"
+                                    currentBuild.result = 'UNSTABLE'
+                                }
+                            }
+                        }
+                    }
+
+                    parallel parallelTests
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // ECR LOGIN
+        stage('ECR Login') {
+            steps {
+                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                    script {
+                        sh """
+                            aws ecr get-login-password --region ${env.AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${env.ECR_REGISTRY}
+                        """
+                    }
+                }
+            }
+        }
+
+        // OPTIMIZACIÓN 3: Docker builds y push en paralelo con cache
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    def changedServices = env.CHANGED_SERVICES.split(',')
+                    def portMap = [:]
+
+                    // Parse port mappings
+                    env.SERVICE_PORTS.split(',').each { mapping ->
+                        def parts = mapping.split(':')
+                        portMap[parts[0]] = parts[1]
+                    }
+
+                    def parallelBuilds = [:]
+
+                    changedServices.each { service ->
+                        parallelBuilds[service] = {
+                            stage("Docker ${service}") {
+                                withAWS(credentials: 'aws-credentials-ecr', region: env.AWS_REGION) {
+                                    def port = portMap[service] ?: '8080'
+
+                                    // Validate service name (security)
+                                    if (!service.matches('[a-z][a-z0-9-]*')) {
+                                        error("Invalid service name: ${service}")
+                                    }
+
+                                    // Pull latest image for cache (if exists)
+                                    sh """
+                                        docker pull ${ECR_REGISTRY}/ecommerce/${service}:latest || \
+                                        echo "No cached image found for ${service}, building from scratch"
+                                    """
+
+                                    // Create optimized Dockerfile
+                                    sh """
+                                        cat > ${service}/Dockerfile.jenkins <<'DOCKERFILE'
+FROM openjdk:11-jre-slim
+WORKDIR /app
+COPY target/${service}-v${env.VERSION}.jar app.jar
+EXPOSE ${port}
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \\
+  CMD curl -f http://localhost:${port}/actuator/health || exit 1
+ENTRYPOINT ["java", "-jar", "app.jar"]
+DOCKERFILE
+                                    """
+
+                                    // Build with cache
+                                    sh """
+                                        docker build --cache-from ${ECR_REGISTRY}/ecommerce/${service}:latest \\
+                                                     -f ${service}/Dockerfile.jenkins \\
+                                                     -t ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} \\
+                                                     -t ${ECR_REGISTRY}/ecommerce/${service}:latest \\
+                                                     -t ${ECR_REGISTRY}/ecommerce/${service}:${VERSION} \\
+                                                     ${service}
+                                    """
+
+                                    // Push in parallel with error checking
+                                    sh """#!/bin/bash
+                                        set -e
+                                        PIDS=()
+
+                                        docker push ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} & PIDS+=(\$!)
+                                        docker push ${ECR_REGISTRY}/ecommerce/${service}:latest & PIDS+=(\$!)
+                                        docker push ${ECR_REGISTRY}/ecommerce/${service}:${VERSION} & PIDS+=(\$!)
+
+                                        # Wait for all and check exit codes
+                                        for pid in \${PIDS[@]}; do
+                                            wait \$pid || exit 1
+                                        done
+
+                                        echo "All tags pushed successfully for ${service}"
+                                    """
+
+                                    // Cleanup
+                                    sh """
+                                        rm ${service}/Dockerfile.jenkins || true
+                                        docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${IMAGE_TAG} || true
+                                        docker rmi ${ECR_REGISTRY}/ecommerce/${service}:${VERSION} || true
+                                    """
+                                }
+                            }
+                        }
+                    }
+
+                    // Execute all builds in parallel
+                    parallel parallelBuilds
+                }
+            }
+        }
+
+        stage('Trigger DEV Deploy') {
+            steps {
+                script {
+                    build job: 'ecommerce-deploy-dev',
+                          parameters: [
+                              string(name: 'SERVICE_VERSIONS', value: env.SERVICE_VERSIONS_JSON)
+                          ],
+                          wait: false
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo "✓ BUILD SUCCESS"
+                echo "Services built: ${env.CHANGED_SERVICES}"
+                echo "Image tag: ${IMAGE_TAG}"
+                echo "Versions: ${env.SERVICE_VERSIONS_JSON}"
+            }
+        }
+        failure {
+            script {
+                echo "✗ BUILD FAILED"
+                echo "Failed services: ${env.CHANGED_SERVICES}"
+            }
+        }
+        always {
+            // Clean workspace but keep Maven cache (.m2)
+            sh 'find . -type d -name target -prune -exec rm -rf {} + || true'
+            sh 'find . -name "Dockerfile.jenkins" -delete || true'
+            sh 'docker system prune -f || true'
+        }
+    }
+}

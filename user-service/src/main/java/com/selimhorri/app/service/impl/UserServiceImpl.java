@@ -23,8 +23,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
-	
+
 	private final UserRepository userRepository;
+	private final com.selimhorri.app.repository.CredentialRepository credentialRepository;
 	private final PasswordEncoder passwordEncoder;
 	
 	@Override
@@ -49,14 +50,24 @@ public class UserServiceImpl implements UserService {
 	public UserDto save(final UserDto userDto) {
 		log.info("*** UserDto, service; save user *");
 		User user = UserMappingHelper.map(userDto);
-		
-		// Encrypt password if it's a new user with plain password (from flat username/password fields)
-		if (userDto.getCredentialDto() == null && userDto.getPassword() != null) {
-			String encodedPassword = this.passwordEncoder.encode(userDto.getPassword());
-			user.getCredential().setPassword(encodedPassword);
+
+		// Extract credential before saving user (as it won't cascade from non-owner side)
+		com.selimhorri.app.domain.Credential credential = user.getCredential();
+
+		// Temporarily remove credential to save user first
+		user.setCredential(null);
+
+		// Save user first (to get the generated user_id)
+		User savedUser = this.userRepository.save(user);
+
+		// Now set the user reference in credential and save it
+		if (credential != null) {
+			credential.setUser(savedUser);
+			com.selimhorri.app.domain.Credential savedCredential = this.credentialRepository.save(credential);
+			savedUser.setCredential(savedCredential);
 		}
-		
-		return UserMappingHelper.map(this.userRepository.save(user));
+
+		return UserMappingHelper.map(savedUser);
 	}
 	
 	@Override

@@ -32,7 +32,8 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: 020951019497.dkr.ecr.us-east-2.amazonaws.com/ecommerce/api-gateway:latest
+          image: luisrojasc/api-gateway:v0.1.0-20251102-160100
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
               name: api-http
@@ -40,7 +41,7 @@ spec:
             - name: SERVER_PORT
               value: "80"
             - name: SPRING_PROFILES_ACTIVE
-              value: "default"
+              value: "dev"
             - name: CLIENT_HOST
               value: "*"
             - name: SPRING_CONFIG_IMPORT

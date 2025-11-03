@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
       - name: postgresql
-        image: postgres:13
+        image: postgres:15-alpine  # Versión más reciente y ligera
         ports:
         - containerPort: 5432
         env:
@@ -63,7 +63,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: gp2
+  storageClassName: standard  # Minikube usa 'standard' no 'gp2'
   resources:
     requests:
-      storage: 5Gi
+      storage: 2Gi  # Menos storage para desarrollo local

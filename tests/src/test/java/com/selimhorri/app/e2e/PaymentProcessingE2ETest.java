@@ -88,7 +88,7 @@ class PaymentProcessingE2ETest {
         // Step 3: Create payment for order
         final String paymentPayload = String.format("""
                 {
-                    "orderDto": {
+                    "order": {
                         "orderId": %d
                     },
                     "isPayed": false
@@ -104,7 +104,7 @@ class PaymentProcessingE2ETest {
         .then()
                 .statusCode(anyOf(is(200), is(201)))
                 .body("paymentId", notNullValue())
-                .body("orderId", equalTo(orderId))
+                .body("order.orderId", equalTo(orderId))
                 .body("isPayed", equalTo(false));
     }
 
@@ -138,7 +138,7 @@ class PaymentProcessingE2ETest {
         final Integer paymentId = given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body(String.format("{\"orderDto\":{\"orderId\":%d},\"isPayed\":false}", orderId))
+                .body(String.format("{\"order\":{\"orderId\":%d},\"isPayed\":false}", orderId))
         .when()
                 .post("/app/api/payments")
         .then()
@@ -150,7 +150,7 @@ class PaymentProcessingE2ETest {
         final String updatePayload = String.format("""
                 {
                     "paymentId": %d,
-                    "orderDto": {
+                    "order": {
                         "orderId": %d
                     },
                     "isPayed": true
@@ -198,7 +198,7 @@ class PaymentProcessingE2ETest {
         final Integer paymentId = given()
                 .header("Authorization", AuthTestUtils.createAuthHeader(authToken))
                 .contentType(ContentType.JSON)
-                .body(String.format("{\"orderDto\":{\"orderId\":%d},\"isPayed\":true}", orderId))
+                .body(String.format("{\"order\":{\"orderId\":%d},\"isPayed\":true}", orderId))
         .when()
                 .post("/app/api/payments")
         .then()
@@ -214,8 +214,8 @@ class PaymentProcessingE2ETest {
         .then()
                 .statusCode(200)
                 .body("paymentId", equalTo(paymentId))
-                .body("orderDto", notNullValue())
-                .body("orderDto.orderId", equalTo(orderId));
+                .body("order", notNullValue())
+                .body("order.orderId", equalTo(orderId));
     }
 
     @Test

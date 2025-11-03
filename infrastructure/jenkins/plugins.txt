@@ -1,0 +1,30 @@
+# Lista mínima de plugins esenciales para Jenkins
+# Solo plugins básicos y probados
+
+# Plugins base esenciales
+build-timeout
+credentials-binding
+git
+github
+gradle
+mailer
+matrix-auth
+timestamper
+workflow-aggregator
+ws-cleanup
+
+# Plugins para Docker
+docker-workflow
+
+# Plugins para Pipeline
+pipeline-stage-view
+pipeline-utility-steps
+
+# Plugins para gestión de credenciales
+plain-credentials
+ssh-credentials
+
+# Plugins adicionales útiles
+job-dsl
+ansicolor
+htmlpublisher

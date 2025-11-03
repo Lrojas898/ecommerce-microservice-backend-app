@@ -25,6 +25,8 @@ public class FeignClientInterceptor implements RequestInterceptor {
 
     @Override
     public void apply(RequestTemplate requestTemplate) {
+        log.debug("FeignClientInterceptor.apply() called for URL: {}", requestTemplate.url());
+        
         try {
             ServletRequestAttributes attributes =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -34,18 +36,16 @@ public class FeignClientInterceptor implements RequestInterceptor {
                 String authHeader = request.getHeader(AUTHORIZATION_HEADER);
 
                 if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
-                    log.debug("Propagating Authorization header to Feign request: {}",
-                        requestTemplate.url());
+                    log.info("✓ Propagating Authorization header to Feign request: {}", requestTemplate.url());
                     requestTemplate.header(AUTHORIZATION_HEADER, authHeader);
                 } else {
-                    log.debug("No Authorization header found in request context for: {}",
-                        requestTemplate.url());
+                    log.warn("✗ No valid Authorization header found in request context for: {}", requestTemplate.url());
                 }
             } else {
-                log.debug("No request attributes available for: {}", requestTemplate.url());
+                log.warn("✗ No request attributes available for: {}, this may cause 401 errors", requestTemplate.url());
             }
         } catch (Exception e) {
-            log.warn("Error propagating Authorization header: {}", e.getMessage());
+            log.error("✗ Error propagating Authorization header: {}", e.getMessage(), e);
         }
     }
 }

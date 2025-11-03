@@ -12,28 +12,28 @@ SELECT 'Test', 'User', 'https://bootdey.com/img/Content/avatar/avatar5.png', 'te
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'test@example.com');
 
 -- Insert credentials for new users using subqueries to get the correct user_id
--- Default password for all users: 'password123' -> $2a$04$1G4TwSzwf5JwZ4dKCXG1Zu1Qh3WIY9JNaM9vF6Ff05QDfyPg7nSxO
+-- Default password for all users: 'password123' (plain text, using NoOpPasswordEncoder)
 
 -- Admin user credentials
-INSERT INTO credentials (user_id, username, password, role, is_enabled, is_account_non_expired, is_account_non_locked, is_credentials_non_expired) 
-SELECT 
-    u.user_id, 
-    'admin', 
-    '$2a$04$1G4TwSzwf5JwZ4dKCXG1Zu1Qh3WIY9JNaM9vF6Ff05QDfyPg7nSxO', 
-    'ROLE_ADMIN', 
+INSERT INTO credentials (user_id, username, password, role, is_enabled, is_account_non_expired, is_account_non_locked, is_credentials_non_expired)
+SELECT
+    u.user_id,
+    'admin',
+    'password123',
+    'ROLE_ADMIN',
     true, true, true, true
-FROM users u 
-WHERE u.email = 'admin@ecommerce.com' 
+FROM users u
+WHERE u.email = 'admin@ecommerce.com'
 AND NOT EXISTS (SELECT 1 FROM credentials WHERE username = 'admin');
 
--- Test user credentials  
-INSERT INTO credentials (user_id, username, password, role, is_enabled, is_account_non_expired, is_account_non_locked, is_credentials_non_expired) 
-SELECT 
-    u.user_id, 
-    'testuser', 
-    '$2a$04$1G4TwSzwf5JwZ4dKCXG1Zu1Qh3WIY9JNaM9vF6Ff05QDfyPg7nSxO', 
-    'ROLE_USER', 
+-- Test user credentials
+INSERT INTO credentials (user_id, username, password, role, is_enabled, is_account_non_expired, is_account_non_locked, is_credentials_non_expired)
+SELECT
+    u.user_id,
+    'testuser',
+    'password123',
+    'ROLE_USER',
     true, true, true, true
-FROM users u 
-WHERE u.email = 'test@example.com' 
+FROM users u
+WHERE u.email = 'test@example.com'
 AND NOT EXISTS (SELECT 1 FROM credentials WHERE username = 'testuser');
