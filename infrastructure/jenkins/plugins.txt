@@ -35,3 +35,4 @@ aws-credentials
 cloudbees-folder
 pipeline-groovy-lib
 kubernetes-cli
+Docker

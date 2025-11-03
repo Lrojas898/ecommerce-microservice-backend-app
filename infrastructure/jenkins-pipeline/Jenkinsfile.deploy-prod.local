@@ -9,22 +9,22 @@ pipeline {
     }
 
     environment {
-        // Kubernetes Configuration (LOCAL)
-        K8S_NAMESPACE = 'dev'
+        // Kubernetes Configuration (LOCAL - PRODUCTION)
+        K8S_NAMESPACE = 'prod'
         DOCKER_REGISTRY = 'docker.io'
 
         // Service Configuration
         ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,proxy-client,api-gateway'
 
-        // Timeouts
+        // Timeouts (increased for production)
         MAX_RETRY_COUNT = '5'
-        SERVICE_READINESS_TIMEOUT = '300'  // Reduced from 900s for local
-        POD_READY_TIMEOUT = '180'          // Reduced from 300s for local
+        SERVICE_READINESS_TIMEOUT = '300'
+        POD_READY_TIMEOUT = '180'
     }
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 45, unit: 'MINUTES')
+        timeout(time: 60, unit: 'MINUTES')
         timestamps()
         disableConcurrentBuilds()
     }
@@ -34,7 +34,7 @@ pipeline {
             steps {
                 script {
                     echo "========================================="
-                    echo "  E-Commerce Microservices Deploy (DEV)"
+                    echo "  E-Commerce Microservices Deploy (PROD)"
                     echo "  Environment: LOCAL (Minikube/K3s)"
                     echo "  Namespace: ${K8S_NAMESPACE}"
                     echo "  Docker User: ${params.DOCKER_USER}"
@@ -95,7 +95,7 @@ pipeline {
                     def serviceVersionMap = [:]
 
                     if (params.FORCE_DEPLOY_ALL) {
-                        echo "  FORCE_DEPLOY_ALL enabled - deploying all services"
+                        echo "⚡ FORCE_DEPLOY_ALL enabled - deploying all services"
                         servicesToDeploy = allServices as List
                         allServices.each { service ->
                             serviceVersionMap[service] = 'latest'
@@ -137,12 +137,49 @@ pipeline {
                     env.SERVICE_VERSION_MAP = groovy.json.JsonOutput.toJson(serviceVersionMap)
 
                     echo "========================================="
-                    echo "  Deployment Plan"
+                    echo "  Deployment Plan (PRODUCTION)"
                     echo "========================================="
                     echo "✓ Services to deploy (${servicesToDeploy.size()}): ${servicesToDeploy.join(', ')}"
                     echo "✓ Services to skip: ${(allServices - servicesToDeploy).join(', ') ?: 'none'}"
                     echo "✓ Version map: ${env.SERVICE_VERSION_MAP}"
                     echo "========================================="
+                }
+            }
+        }
+
+        stage('Manual Approval') {
+            steps {
+                script {
+                    def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
+                    def deploymentSummary = """
+========================================
+  PRODUCTION DEPLOYMENT APPROVAL
+========================================
+Namespace: ${K8S_NAMESPACE}
+Services to deploy: ${servicesToDeploy.join(', ')}
+Docker User: ${params.DOCKER_USER}
+Git Commit: ${env.GIT_COMMIT_SHORT}
+
+  This will deploy to PRODUCTION environment!
+========================================
+                    """
+
+                    echo deploymentSummary
+
+                    timeout(time: 30, unit: 'MINUTES') {
+                        input message: ' Approve deployment to PRODUCTION?',
+                              ok: 'Deploy to Production',
+                              submitter: 'admin,deployers',
+                              parameters: [
+                                  booleanParam(
+                                      name: 'CONFIRM_PRODUCTION_DEPLOY',
+                                      defaultValue: false,
+                                      description: 'Check this box to confirm production deployment'
+                                  )
+                              ]
+                    }
+
+                    echo "✓ Production deployment approved"
                 }
             }
         }
@@ -153,7 +190,7 @@ pipeline {
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
                     def persistentServices = ['postgresql', 'postgres']
 
-                    echo " Cleaning up resources for services to be deployed..."
+                    echo "🧹 Cleaning up resources for services to be deployed..."
 
                     servicesToDeploy.each { service ->
                         if (!persistentServices.contains(service)) {
@@ -314,7 +351,7 @@ pipeline {
                                 echo "✓ ${service} deployed successfully"
                             """
                         } else {
-                            echo   Skipping ${service} (no changes)"
+                            echo "  Skipping ${service} (no changes)"
                         }
                     }
                 }
@@ -364,10 +401,10 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 script {
-                    echo " Verifying final deployment state..."
+                    echo "🔍 Verifying final deployment state..."
                     sh """
                         echo "========================================="
-                        echo "  Deployment Verification"
+                        echo "  Deployment Verification (PRODUCTION)"
                         echo "========================================="
 
                         # Show all pods
@@ -417,7 +454,7 @@ pipeline {
                     echo " Retrieving access URL..."
                     sh """
                         echo "========================================="
-                        echo "  Access Information"
+                        echo "  Access Information (PRODUCTION)"
                         echo "========================================="
 
                         # Get API Gateway URL (minikube or LoadBalancer)
@@ -514,7 +551,7 @@ pipeline {
 
                     echo """
 ========================================
-  DEPLOYMENT SUMMARY
+  DEPLOYMENT SUMMARY (PRODUCTION)
 ========================================
 ✓ Namespace: ${K8S_NAMESPACE}
 ✓ Docker Registry: ${params.DOCKER_USER}
@@ -540,12 +577,12 @@ Next Steps:
     post {
         success {
             script {
-                echo " DEPLOYMENT SUCCESS"
+                echo " DEPLOYMENT SUCCESS (PRODUCTION)"
             }
         }
         failure {
             script {
-                echo " DEPLOYMENT FAILED"
+                echo " DEPLOYMENT FAILED (PRODUCTION)"
                 echo "Collecting diagnostic information..."
 
                 sh """

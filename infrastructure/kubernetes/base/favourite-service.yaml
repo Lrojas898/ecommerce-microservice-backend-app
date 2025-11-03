@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: favourite-service
-          image: luisrojasc/favourite-service:v0.1.0-20251102-224250
+          image: luisrojasc/favourite-service:v0.1.0-20251102-231111
           imagePullPolicy: Always
           ports:
             - containerPort: 8086
