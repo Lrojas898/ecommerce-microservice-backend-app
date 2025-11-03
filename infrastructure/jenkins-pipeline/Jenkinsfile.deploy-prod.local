@@ -239,14 +239,11 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                                 # Update image
                                 kubectl set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
 
-                                # Scale up
-                                kubectl scale deployment/${service} --replicas=1 -n ${K8S_NAMESPACE}
+                                # Force rollout restart to ensure new image is pulled
+                                kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
 
                                 # Wait for rollout
                                 kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
-
-                                # Wait for pod ready
-                                kubectl wait --for=condition=ready pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=${POD_READY_TIMEOUT}s
 
                                 echo "✓ ${service} deployed successfully"
                             """
@@ -294,14 +291,11 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                                 # Update image
                                 kubectl set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
 
-                                # Scale up
-                                kubectl scale deployment/${service} --replicas=1 -n ${K8S_NAMESPACE}
+                                # Force rollout restart to ensure new image is pulled
+                                kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
 
                                 # Wait for rollout
                                 kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
-
-                                # Wait for pod ready
-                                kubectl wait --for=condition=ready pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=${POD_READY_TIMEOUT}s
 
                                 echo "✓ ${service} deployed successfully"
                             """
@@ -331,7 +325,7 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
 
                             kubectl apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
                             kubectl set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
-                            kubectl scale deployment/api-gateway --replicas=1 -n ${K8S_NAMESPACE}
+                            kubectl rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
                             kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                             echo "✓ API Gateway deployed successfully"
