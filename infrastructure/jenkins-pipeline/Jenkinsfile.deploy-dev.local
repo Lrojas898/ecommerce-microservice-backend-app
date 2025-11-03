@@ -14,7 +14,7 @@ pipeline {
         DOCKER_REGISTRY = 'docker.io'
 
         // Service Configuration
-        ALL_SERVICES = 'service-discovery,cloud-config,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,proxy-client,api-gateway'
+        ALL_SERVICES = 'service-discovery,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,proxy-client,api-gateway'
 
         // Timeouts
         MAX_RETRY_COUNT = '5'
@@ -181,7 +181,7 @@ pipeline {
         stage('Deploy Infrastructure Services') {
             steps {
                 script {
-                    def infraServices = ['service-discovery', 'cloud-config']
+                    def infraServices = ['service-discovery']
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
                     def slurper = new groovy.json.JsonSlurper()
                     def serviceVersionMap = slurper.parseText(env.SERVICE_VERSION_MAP)
@@ -214,7 +214,7 @@ pipeline {
                                 echo "✓ ${service} deployed successfully"
                             """
 
-                            // Service-specific verification
+                            // Service-specific verification for Eureka
                             if (service == 'service-discovery') {
                                 echo "Verifying Eureka is ready..."
                                 sh """
@@ -226,18 +226,6 @@ pipeline {
                                         retries=\$((retries + 1))
                                     done
                                     echo "✓ Eureka is ready"
-                                """
-                            } else if (service == 'cloud-config') {
-                                echo "Verifying Config Server is ready..."
-                                sh """
-                                    sleep 20
-                                    retries=0
-                                    until kubectl exec -n ${K8S_NAMESPACE} deploy/cloud-config -- curl -sf http://localhost:9296/actuator/health 2>/dev/null || [ \$retries -ge 3 ]; do
-                                        echo "Waiting for Config Server... (attempt \$((retries + 1))/3)"
-                                        sleep 15
-                                        retries=\$((retries + 1))
-                                    done
-                                    echo "✓ Config Server is ready"
                                 """
                             }
                         } else {
@@ -494,7 +482,7 @@ pipeline {
                         """
                     } catch (Exception e) {
                         echo "  E2E tests failed or could not run: ${e.message}"
-                        currentBuild.result = 'UNSTABLE'
+                        error("E2E tests failed: ${e.message}")
                     }
                 }
             }
@@ -552,11 +540,6 @@ Next Steps:
                     kubectl get pods -n ${K8S_NAMESPACE} || true
                     kubectl get events -n ${K8S_NAMESPACE} --sort-by=.firstTimestamp | tail -20 || true
                 """
-            }
-        }
-        unstable {
-            script {
-                echo "  DEPLOYMENT UNSTABLE (E2E tests failed)"
             }
         }
         always {

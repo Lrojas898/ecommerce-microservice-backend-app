@@ -28,10 +28,10 @@ pipeline {
         BUILD_TIMESTAMP = sh(script: "date +%Y%m%d-%H%M%S", returnStdout: true).trim()
 
         // Services to build
-        SERVICES = 'service-discovery,cloud-config,proxy-client,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
+        SERVICES = 'service-discovery,proxy-client,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,api-gateway'
 
         // Service port mappings for healthchecks
-        SERVICE_PORTS = 'api-gateway:8080,cloud-config:9296,service-discovery:8761,proxy-client:8080,user-service:8081,product-service:8082,favourite-service:8086,order-service:8083,payment-service:8084,shipping-service:8085'
+        SERVICE_PORTS = 'api-gateway:8080,service-discovery:8761,proxy-client:8080,user-service:8081,product-service:8082,favourite-service:8086,order-service:8083,payment-service:8084,shipping-service:8085'
     }
 
     options {
@@ -45,7 +45,7 @@ pipeline {
         stage('Cleanup Docker') {
             steps {
                 script {
-                    echo "🧹 Cleaning up Docker resources to free disk space..."
+                    echo " Cleaning up Docker resources to free disk space..."
                     sh """
                         # Remove stopped containers
                         docker container prune -f || true
@@ -157,16 +157,11 @@ pipeline {
                     changedServicesList.each { service ->
                         parallelTests[service] = {
                             stage("Test ${service}") {
-                                try {
-                                    sh """
-                                        echo "Testing ${service}..."
-                                        mvn test -pl ${service} -q
-                                    """
-                                    echo "✓ ${service} tests passed"
-                                } catch (Exception e) {
-                                    echo "⚠ Tests failed for ${service}: ${e.message}"
-                                    currentBuild.result = 'UNSTABLE'
-                                }
+                                sh """
+                                    echo "Testing ${service}..."
+                                    mvn test -pl ${service} -q
+                                """
+                                echo "✓ ${service} tests passed"
                             }
                         }
                     }
@@ -349,12 +344,6 @@ EOF
             script {
                 echo " BUILD FAILED"
                 echo "Failed services: ${env.CHANGED_SERVICES}"
-            }
-        }
-        unstable {
-            script {
-                echo " BUILD UNSTABLE (some tests failed)"
-                echo "Services: ${env.CHANGED_SERVICES}"
             }
         }
         always {
