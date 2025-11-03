@@ -220,7 +220,7 @@ pipeline {
                                 sh """
                                     sleep 30
                                     retries=0
-                                    until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps 2>/dev/null || [ \$retries -ge 3 ]; do
+                                    until kubectl --insecure-skip-tls-verify exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps 2>/dev/null || [ \$retries -ge 3 ]; do
                                         echo "Waiting for Eureka... (attempt \$((retries + 1))/3)"
                                         sleep 20
                                         retries=\$((retries + 1))
@@ -267,19 +267,19 @@ pipeline {
                                 set -e
 
                                 # Apply configuration
-                                kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
 
                                 # Update image
-                                kubectl set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
 
                                 # Scale up
-                                kubectl scale deployment/${service} --replicas=1 -n ${K8S_NAMESPACE}
+                                kubectl --insecure-skip-tls-verify scale deployment/${service} --replicas=1 -n ${K8S_NAMESPACE}
 
                                 # Wait for rollout
-                                kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                                 # Wait for pod ready
-                                kubectl wait --for=condition=ready pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=${POD_READY_TIMEOUT}s
+                                kubectl --insecure-skip-tls-verify wait --for=condition=ready pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=${POD_READY_TIMEOUT}s
 
                                 # Verify Eureka registration (if not proxy-client)
                                 if [ "${service}" != "proxy-client" ]; then
@@ -287,7 +287,7 @@ pipeline {
                                     sleep 15
                                     retries=0
                                     SERVICE_NAME_UPPER=\$(echo "${service}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
-                                    until kubectl exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/\${SERVICE_NAME_UPPER} 2>/dev/null | grep -q "status" || [ \$retries -ge 3 ]; do
+                                    until kubectl --insecure-skip-tls-verify exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/\${SERVICE_NAME_UPPER} 2>/dev/null | grep -q "status" || [ \$retries -ge 3 ]; do
                                         echo "Waiting for Eureka registration... (attempt \$((retries + 1))/3)"
                                         sleep 10
                                         retries=\$((retries + 1))
@@ -325,16 +325,16 @@ pipeline {
                         sh label: "Deploy API Gateway", script: """
                             set -e
 
-                            kubectl apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
-                            kubectl set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
-                            kubectl scale deployment/api-gateway --replicas=1 -n ${K8S_NAMESPACE}
-                            kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                            kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
+                            kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
+                            kubectl --insecure-skip-tls-verify scale deployment/api-gateway --replicas=1 -n ${K8S_NAMESPACE}
+                            kubectl --insecure-skip-tls-verify rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                             # Verify health
                             echo "Verifying API Gateway health..."
                             sleep 20
                             retries=0
-                            until kubectl exec -n ${K8S_NAMESPACE} deploy/api-gateway -- curl -sf http://localhost:80/actuator/health 2>/dev/null || [ \$retries -ge 3 ]; do
+                            until kubectl --insecure-skip-tls-verify exec -n ${K8S_NAMESPACE} deploy/api-gateway -- curl -sf http://localhost:80/actuator/health 2>/dev/null || [ \$retries -ge 3 ]; do
                                 echo "Waiting for API Gateway... (attempt \$((retries + 1))/3)"
                                 sleep 15
                                 retries=\$((retries + 1))
@@ -360,20 +360,20 @@ pipeline {
 
                         # Show all pods
                         echo "Pods:"
-                        kubectl get pods -n ${K8S_NAMESPACE} -o wide
+                        kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -o wide
 
                         # Show services
                         echo ""
                         echo "Services:"
-                        kubectl get svc -n ${K8S_NAMESPACE}
+                        kubectl --insecure-skip-tls-verify get svc -n ${K8S_NAMESPACE}
 
                         # Check for issues
                         echo ""
                         echo "Checking for pod issues..."
-                        PROBLEM_PODS=\$(kubectl get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null | wc -l)
+                        PROBLEM_PODS=\$(kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null | wc -l)
                         if [ \$PROBLEM_PODS -gt 0 ]; then
                             echo "  Warning: \$PROBLEM_PODS pod(s) not in Running state"
-                            kubectl get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded
+                            kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded
                         else
                             echo "✓ All pods are running"
                         fi
@@ -383,10 +383,10 @@ pipeline {
                         echo "Checking for duplicate pods..."
                         SERVICES=\$(echo "${ALL_SERVICES}" | tr ',' ' ')
                         for service in \$SERVICES; do
-                            POD_COUNT=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers 2>/dev/null | wc -l)
+                            POD_COUNT=\$(kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers 2>/dev/null | wc -l)
                             if [ \$POD_COUNT -gt 1 ]; then
                                 echo "  Multiple pods found for \$service (\$POD_COUNT pods) - cleaning up..."
-                                kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' | xargs -r kubectl delete pod -n ${K8S_NAMESPACE} || true
+                                kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' | xargs -r kubectl --insecure-skip-tls-verify delete pod -n ${K8S_NAMESPACE} || true
                             fi
                         done
 
@@ -409,7 +409,7 @@ pipeline {
                         echo "========================================="
 
                         # Get API Gateway URL (minikube or LoadBalancer)
-                        GATEWAY_URL=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+                        GATEWAY_URL=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 
                         if [ -z "\$GATEWAY_URL" ]; then
                             # Try minikube service URL
@@ -420,9 +420,9 @@ pipeline {
 
                         if [ -z "\$GATEWAY_URL" ]; then
                             # Get NodePort
-                            NODE_PORT=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
+                            NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
                             if [ -n "\$NODE_PORT" ]; then
-                                NODE_IP=\$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+                                NODE_IP=\$(kubectl --insecure-skip-tls-verify get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
                                 GATEWAY_URL="http://\${NODE_IP}:\${NODE_PORT}"
                             fi
                         fi
@@ -430,10 +430,10 @@ pipeline {
                         if [ -n "\$GATEWAY_URL" ]; then
                             echo "✓ API Gateway URL: \$GATEWAY_URL"
                             echo "✓ Health Check: \$GATEWAY_URL/actuator/health"
-                            echo "✓ Eureka Dashboard: http://\$(kubectl get svc service-discovery -n ${K8S_NAMESPACE} -o jsonpath='{.spec.clusterIP}'):8761"
+                            echo "✓ Eureka Dashboard: http://\$(kubectl --insecure-skip-tls-verify get svc service-discovery -n ${K8S_NAMESPACE} -o jsonpath='{.spec.clusterIP}'):8761"
                         else
                             echo "  Could not determine external URL"
-                            echo "Use: kubectl port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80"
+                            echo "Use: kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80"
                         fi
 
                         echo "========================================="
@@ -457,7 +457,7 @@ pipeline {
                             sleep 60
 
                             # Get API Gateway URL
-                            GATEWAY_URL=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+                            GATEWAY_URL=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 
                             if [ -z "\$GATEWAY_URL" ]; then
                                 if command -v minikube &> /dev/null; then
@@ -466,8 +466,8 @@ pipeline {
                             fi
 
                             if [ -z "\$GATEWAY_URL" ]; then
-                                NODE_PORT=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
-                                NODE_IP=\$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+                                NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
+                                NODE_IP=\$(kubectl --insecure-skip-tls-verify get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
                                 GATEWAY_URL="http://\${NODE_IP}:\${NODE_PORT}"
                             fi
 
@@ -515,9 +515,9 @@ Services Skipped (${skippedServices.size()}):
 ${skippedServices.collect { "  • ${it}" }.join('\n') ?: '  (none)'}
 
 Next Steps:
-1. Check pods: kubectl get pods -n ${K8S_NAMESPACE}
-2. Check logs: kubectl logs -f -l app=<service> -n ${K8S_NAMESPACE}
-3. Port forward: kubectl port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80
+1. Check pods: kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE}
+2. Check logs: kubectl --insecure-skip-tls-verify logs -f -l app=<service> -n ${K8S_NAMESPACE}
+3. Port forward: kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80
 ========================================
                     """
                 }
@@ -537,8 +537,8 @@ Next Steps:
                 echo "Collecting diagnostic information..."
 
                 sh """
-                    kubectl get pods -n ${K8S_NAMESPACE} || true
-                    kubectl get events -n ${K8S_NAMESPACE} --sort-by=.firstTimestamp | tail -20 || true
+                    kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} || true
+                    kubectl --insecure-skip-tls-verify get events -n ${K8S_NAMESPACE} --sort-by=.firstTimestamp | tail -20 || true
                 """
             }
         }
