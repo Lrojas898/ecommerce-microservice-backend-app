@@ -606,9 +606,9 @@ mvn clean verify -Dtest.base.url="http://\$MINIKUBE_IP:32118"
                                 -Dsonar.token=squ_ed5405cbe3456c97523f39f0eceb7d9c4c26c5b3 \\
                                 -Dsonar.projectKey=ecommerce-e2e-tests \\
                                 -Dsonar.projectName="E-Commerce E2E Tests" \\
-                                -Dsonar.sources=src/main/java \\
+                                -Dsonar.sources=src/test/java \\
                                 -Dsonar.tests=src/test/java \\
-                                -Dsonar.java.binaries=target/classes,target/test-classes \\
+                                -Dsonar.java.binaries=target/test-classes \\
                                 -Dsonar.junit.reportPaths=target/failsafe-reports \\
                                 -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
