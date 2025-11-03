@@ -174,10 +174,23 @@ pipeline {
 
                             echo " Deploying ${service} (${imageTag})..."
 
-                            // Execute kubectl commands and ignore transient failures
-                            sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} || true"
-                            sh "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} || true"
-                            sh "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} || true"
+                            // Execute kubectl commands with retry to handle CPS context issues
+                            retry(3) {
+                                sh """
+                                    set -e
+                                    echo "Applying manifest for ${service}..."
+                                    kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                                    sleep 1
+                                    
+                                    echo "Updating image for ${service}..."
+                                    kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                                    sleep 1
+                                    
+                                    echo "Restarting deployment ${service}..."
+                                    kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                    sleep 2
+                                """
+                            }
 
                             // Wait using Groovy (Jenkins-safe)
                             def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
@@ -245,10 +258,23 @@ pipeline {
 
                             echo "Deploying ${service} (${imageTag})..."
 
-                            // Execute kubectl commands and ignore transient failures
-                            sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} || true"
-                            sh "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} || true"
-                            sh "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} || true"
+                            // Execute kubectl commands with retry to handle CPS context issues
+                            retry(3) {
+                                sh """
+                                    set -e
+                                    echo "Applying manifest for ${service}..."
+                                    kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                                    sleep 1
+                                    
+                                    echo "Updating image for ${service}..."
+                                    kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                                    sleep 1
+                                    
+                                    echo "Restarting deployment ${service}..."
+                                    kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                    sleep 2
+                                """
+                            }
 
                             // Wait using Groovy (Jenkins-safe)
                             def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
@@ -303,10 +329,23 @@ pipeline {
 
                         echo " Deploying api-gateway (${imageTag})..."
 
-                        // Execute kubectl commands and ignore transient failures
-                        sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE} || true"
-                        sh "kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE} || true"
-                        sh "kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE} || true"
+                        // Execute kubectl commands with retry to handle CPS context issues
+                        retry(3) {
+                            sh """
+                                set -e
+                                echo "Applying manifest for api-gateway..."
+                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
+                                sleep 1
+                                
+                                echo "Updating image for api-gateway..."
+                                kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
+                                sleep 1
+                                
+                                echo "Restarting deployment api-gateway..."
+                                kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
+                                sleep 2
+                            """
+                        }
 
                         // Wait using Groovy (Jenkins-safe)
                         def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
