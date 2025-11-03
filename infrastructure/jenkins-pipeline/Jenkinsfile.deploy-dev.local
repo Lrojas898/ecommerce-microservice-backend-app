@@ -174,10 +174,10 @@ pipeline {
 
                             echo " Deploying ${service} (${imageTag})..."
 
-                            // Execute each kubectl command in its own sh block
-                            sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}"
-                            sh "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}"
-                            sh "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}"
+                            // Execute kubectl commands with explicit output handling
+                            sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
 
                             // Wait using Groovy (Jenkins-safe)
                             def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
@@ -245,10 +245,10 @@ pipeline {
 
                             echo "Deploying ${service} (${imageTag})..."
 
-                            // Execute each kubectl command in its own sh block
-                            sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}"
-                            sh "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}"
-                            sh "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}"
+                            // Execute kubectl commands with explicit output handling
+                            sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
 
                             // Wait using Groovy (Jenkins-safe)
                             def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
@@ -303,10 +303,10 @@ pipeline {
 
                         echo " Deploying api-gateway (${imageTag})..."
 
-                        // Execute each kubectl command in its own sh block
-                        sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}"
-                        sh "kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}"
-                        sh "kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}"
+                        // Execute kubectl commands with explicit output handling
+                        sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                        sh script: "kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                        sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
 
                         // Wait using Groovy (Jenkins-safe)
                         def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
