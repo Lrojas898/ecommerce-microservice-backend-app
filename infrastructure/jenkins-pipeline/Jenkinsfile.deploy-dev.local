@@ -162,13 +162,13 @@ pipeline {
                                 set -e
 
                                 # Scale down to free resources
-                                kubectl scale deployment/${service} --replicas=0 -n ${K8S_NAMESPACE} 2>/dev/null || echo "Deployment ${service} not found (first deploy)"
+                                kubectl --insecure-skip-tls-verify scale deployment/${service} --replicas=0 -n ${K8S_NAMESPACE} 2>/dev/null || echo "Deployment ${service} not found (first deploy)"
 
                                 # Wait for pods to terminate
-                                kubectl wait --for=delete pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=60s 2>/dev/null || echo "No pods to delete for ${service}"
+                                kubectl --insecure-skip-tls-verify wait --for=delete pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=60s 2>/dev/null || echo "No pods to delete for ${service}"
 
                                 # Clean old replica sets (keep last 2)
-                                kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | head -n -2 | xargs -r kubectl delete -n ${K8S_NAMESPACE} || true
+                                kubectl --insecure-skip-tls-verify get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | head -n -2 | xargs -r kubectl --insecure-skip-tls-verify delete -n ${K8S_NAMESPACE} || true
 
                                 echo "✓ ${service} cleanup complete"
                             """
@@ -197,19 +197,19 @@ pipeline {
                                 set -e
 
                                 # Apply base configuration
-                                kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
 
                                 # Update image
-                                kubectl set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
 
                                 # Scale up
-                                kubectl scale deployment/${service} --replicas=1 -n ${K8S_NAMESPACE}
+                                kubectl --insecure-skip-tls-verify scale deployment/${service} --replicas=1 -n ${K8S_NAMESPACE}
 
                                 # Wait for rollout
-                                kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                                 # Wait for pod ready
-                                kubectl wait --for=condition=ready pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=${POD_READY_TIMEOUT}s
+                                kubectl --insecure-skip-tls-verify wait --for=condition=ready pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=${POD_READY_TIMEOUT}s
 
                                 echo "✓ ${service} deployed successfully"
                             """
