@@ -302,7 +302,7 @@ pipeline {
                                 echo "✓ ${service} deployed successfully"
                             """
                         } else {
-                            echo   Skipping ${service} (no changes)"
+                            echo "  Skipping ${service} (no changes)"
                         }
                     }
                 }
