@@ -9,17 +9,12 @@ pipeline {
     }
 
     environment {
-        // Kubernetes Configuration (LOCAL)
         K8S_NAMESPACE = 'dev'
         DOCKER_REGISTRY = 'docker.io'
-
-        // Service Configuration
         ALL_SERVICES = 'service-discovery,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,proxy-client,api-gateway'
-
-        // Timeouts
         MAX_RETRY_COUNT = '5'
-        SERVICE_READINESS_TIMEOUT = '600'  // 10 minutes for rollout
-        POD_READY_TIMEOUT = '300'          // 5 minutes for pod ready
+        SERVICE_READINESS_TIMEOUT = '600'
+        POD_READY_TIMEOUT = '300'
     }
 
     options {
@@ -60,16 +55,10 @@ pipeline {
                 script {
                     echo " Configuring kubectl for local cluster..."
                     sh """
-                        # Verify kubectl is configured
                         kubectl --insecure-skip-tls-verify version --client
-
-                        # Check cluster connectivity
                         kubectl --insecure-skip-tls-verify cluster-info
-
-                        # Set namespace
                         kubectl --insecure-skip-tls-verify config set-context --current --namespace=${K8S_NAMESPACE}
-
-                        echo "✓ kubectl configured successfully"
+                        echo "kubectl configured successfully"
                     """
                 }
             }
@@ -106,7 +95,6 @@ pipeline {
                             def parsed = slurper.parseText(params.SERVICE_VERSIONS)
                             serviceVersionMap = parsed.collectEntries { k, v -> [k.toString(), v.toString()] }
 
-                            // Detect changed services (version != 'latest')
                             serviceVersionMap.each { service, version ->
                                 if (version != 'latest' && allServices.contains(service)) {
                                     servicesToDeploy.add(service)
@@ -139,9 +127,9 @@ pipeline {
                     echo "========================================="
                     echo "  Deployment Plan"
                     echo "========================================="
-                    echo "✓ Services to deploy (${servicesToDeploy.size()}): ${servicesToDeploy.join(', ')}"
-                    echo "✓ Services to skip: ${(allServices - servicesToDeploy).join(', ') ?: 'none'}"
-                    echo "✓ Version map: ${env.SERVICE_VERSION_MAP}"
+                    echo "Services to deploy (${servicesToDeploy.size()}): ${servicesToDeploy.join(', ')}"
+                    echo "Services to skip: ${(allServices - servicesToDeploy).join(', ') ?: 'none'}"
+                    echo "Version map: ${env.SERVICE_VERSION_MAP}"
                     echo "========================================="
                 }
             }
@@ -157,20 +145,13 @@ pipeline {
 
                     servicesToDeploy.each { service ->
                         if (!persistentServices.contains(service)) {
-                            echo ">>> Preparing ${service} for redeployment"
+                            echo "Preparing ${service} for redeployment"
                             sh """
                                 set -e
-
-                                # Scale down to free resources
                                 kubectl --insecure-skip-tls-verify scale deployment/${service} --replicas=0 -n ${K8S_NAMESPACE} 2>/dev/null || echo "Deployment ${service} not found (first deploy)"
-
-                                # Wait for pods to terminate
                                 kubectl --insecure-skip-tls-verify wait --for=delete pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=60s 2>/dev/null || echo "No pods to delete for ${service}"
-
-                                # Clean old replica sets (keep last 2)
                                 kubectl --insecure-skip-tls-verify get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | head -n -2 | xargs -r kubectl --insecure-skip-tls-verify delete -n ${K8S_NAMESPACE} || true
-
-                                echo "✓ ${service} cleanup complete"
+                                echo "${service} cleanup complete"
                             """
                         }
                     }
@@ -195,20 +176,18 @@ pipeline {
 
                             sh label: "Deploy ${service}", script: """
                                 set -e
-
-                                # Apply base configuration
                                 kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
-
-                                # Update image
                                 kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
-
-                                # Force rollout restart to ensure new image is pulled
                                 kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
 
-                                # Wait for deployment to be available
-                                kubectl --insecure-skip-tls-verify wait --for=condition=Available deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
-
-                                echo "✓ ${service} deployed successfully"
+                                echo "Waiting for deployment/${service} to become available (timeout: ${SERVICE_READINESS_TIMEOUT}s)..."
+                                timeout ${SERVICE_READINESS_TIMEOUT} bash -c '
+                                    while ! kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath="{.status.availableReplicas}" 2>/dev/null | grep -q "1"; do
+                                        echo "Still waiting... (\$(date +%H:%M:%S))"
+                                        sleep 2
+                                    done
+                                    echo "${service} is available"
+                                '
                             """
                         } else {
                             echo "  Skipping ${service} (no changes)"
@@ -221,7 +200,6 @@ pipeline {
         stage('Deploy Microservices') {
             steps {
                 script {
-                    // Deployment order (dependencies first)
                     def deploymentOrder = [
                         'user-service',
                         'product-service',
@@ -243,24 +221,22 @@ pipeline {
                             def version = serviceVersionMap[service] ?: 'latest'
                             def imageTag = "${params.DOCKER_USER}/${service}:${version}"
 
-                            echo ">>> Deploying ${service} (${imageTag})..."
+                            echo "Deploying ${service} (${imageTag})..."
 
                             sh label: "Deploy ${service}", script: """
                                 set -e
-
-                                # Apply configuration
                                 kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
-
-                                # Update image
                                 kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
-
-                                # Force rollout restart to ensure new image is pulled
                                 kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
 
-                                # Wait for deployment to be available
-                                kubectl --insecure-skip-tls-verify wait --for=condition=Available deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
-
-                                echo "✓ ${service} deployed successfully"
+                                echo "Waiting for deployment/${service} to become available (timeout: ${SERVICE_READINESS_TIMEOUT}s)..."
+                                timeout ${SERVICE_READINESS_TIMEOUT} bash -c '
+                                    while ! kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath="{.status.availableReplicas}" 2>/dev/null | grep -q "1"; do
+                                        echo "Still waiting... (\$(date +%H:%M:%S))"
+                                        sleep 2
+                                    done
+                                    echo "${service} is available"
+                                '
                             """
                         } else {
                             echo "  Skipping ${service} (no changes)"
@@ -285,13 +261,18 @@ pipeline {
 
                         sh label: "Deploy API Gateway", script: """
                             set -e
-
                             kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
-                            kubectl --insecure-skip-tls-verify wait --for=condition=Available deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
-                            echo "✓ API Gateway deployed successfully"
+                            echo "Waiting for deployment/api-gateway to become available (timeout: ${SERVICE_READINESS_TIMEOUT}s)..."
+                            timeout ${SERVICE_READINESS_TIMEOUT} bash -c '
+                                while ! kubectl --insecure-skip-tls-verify get deployment/api-gateway -n ${K8S_NAMESPACE} -o jsonpath="{.status.availableReplicas}" 2>/dev/null | grep -q "1"; do
+                                    echo "Still waiting... (\$(date +%H:%M:%S))"
+                                    sleep 2
+                                done
+                                echo "api-gateway is available"
+                            '
                         """
                     } else {
                         echo "  Skipping api-gateway (no changes)"
@@ -309,41 +290,37 @@ pipeline {
                         echo "  Deployment Verification"
                         echo "========================================="
 
-                        # Show all pods
                         echo "Pods:"
                         kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -o wide
 
-                        # Show services
                         echo ""
                         echo "Services:"
                         kubectl --insecure-skip-tls-verify get svc -n ${K8S_NAMESPACE}
 
-                        # Check for issues
                         echo ""
                         echo "Checking for pod issues..."
                         PROBLEM_PODS=\$(kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null | wc -l)
                         if [ \$PROBLEM_PODS -gt 0 ]; then
-                            echo "  Warning: \$PROBLEM_PODS pod(s) not in Running state"
+                            echo "Warning: \$PROBLEM_PODS pod(s) not in Running state"
                             kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded
                         else
-                            echo "✓ All pods are running"
+                            echo "All pods are running"
                         fi
 
-                        # Check for multiple pods per service
                         echo ""
                         echo "Checking for duplicate pods..."
                         SERVICES=\$(echo "${ALL_SERVICES}" | tr ',' ' ')
                         for service in \$SERVICES; do
                             POD_COUNT=\$(kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers 2>/dev/null | wc -l)
                             if [ \$POD_COUNT -gt 1 ]; then
-                                echo "  Multiple pods found for \$service (\$POD_COUNT pods) - cleaning up..."
+                                echo "Multiple pods found for \$service (\$POD_COUNT pods) - cleaning up..."
                                 kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' | xargs -r kubectl --insecure-skip-tls-verify delete pod -n ${K8S_NAMESPACE} || true
                             fi
                         done
 
                         echo ""
                         echo "========================================="
-                        echo "✓ Verification complete"
+                        echo "Verification complete"
                         echo "========================================="
                     """
                 }
@@ -359,18 +336,15 @@ pipeline {
                         echo "  Access Information"
                         echo "========================================="
 
-                        # Get API Gateway URL (minikube or LoadBalancer)
                         GATEWAY_URL=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 
                         if [ -z "\$GATEWAY_URL" ]; then
-                            # Try minikube service URL
                             if command -v minikube &> /dev/null; then
                                 GATEWAY_URL=\$(minikube service api-gateway -n ${K8S_NAMESPACE} --url 2>/dev/null || echo "")
                             fi
                         fi
 
                         if [ -z "\$GATEWAY_URL" ]; then
-                            # Get NodePort
                             NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
                             if [ -n "\$NODE_PORT" ]; then
                                 NODE_IP=\$(kubectl --insecure-skip-tls-verify get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
@@ -379,11 +353,11 @@ pipeline {
                         fi
 
                         if [ -n "\$GATEWAY_URL" ]; then
-                            echo "✓ API Gateway URL: \$GATEWAY_URL"
-                            echo "✓ Health Check: \$GATEWAY_URL/actuator/health"
-                            echo "✓ Eureka Dashboard: http://\$(kubectl --insecure-skip-tls-verify get svc service-discovery -n ${K8S_NAMESPACE} -o jsonpath='{.spec.clusterIP}'):8761"
+                            echo "API Gateway URL: \$GATEWAY_URL"
+                            echo "Health Check: \$GATEWAY_URL/actuator/health"
+                            echo "Eureka Dashboard: http://\$(kubectl --insecure-skip-tls-verify get svc service-discovery -n ${K8S_NAMESPACE} -o jsonpath='{.spec.clusterIP}'):8761"
                         else
-                            echo "  Could not determine external URL"
+                            echo "Could not determine external URL"
                             echo "Use: kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80"
                         fi
 
@@ -403,11 +377,9 @@ pipeline {
 
                     try {
                         sh """
-                            # Wait for services to stabilize
                             echo "Waiting for services to stabilize (60s)..."
                             sleep 60
 
-                            # Get API Gateway URL
                             GATEWAY_URL=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 
                             if [ -z "\$GATEWAY_URL" ]; then
@@ -424,7 +396,6 @@ pipeline {
 
                             echo "Testing against: \$GATEWAY_URL"
 
-                            # Run E2E tests
                             cd tests
                             mvn clean verify -Pe2e-tests \\
                                 -Dtest.base.url=\$GATEWAY_URL \\
@@ -455,15 +426,15 @@ pipeline {
 ========================================
   DEPLOYMENT SUMMARY
 ========================================
-✓ Namespace: ${K8S_NAMESPACE}
-✓ Docker Registry: ${params.DOCKER_USER}
-✓ Git Commit: ${env.GIT_COMMIT_SHORT}
+Namespace: ${K8S_NAMESPACE}
+Docker Registry: ${params.DOCKER_USER}
+Git Commit: ${env.GIT_COMMIT_SHORT}
 
 Services Deployed (${servicesToDeploy.size()}):
-${servicesToDeploy.collect { "  • ${it}" }.join('\n')}
+${servicesToDeploy.collect { "  - ${it}" }.join('\n')}
 
 Services Skipped (${skippedServices.size()}):
-${skippedServices.collect { "  • ${it}" }.join('\n') ?: '  (none)'}
+${skippedServices.collect { "  - ${it}" }.join('\n') ?: '  (none)'}
 
 Next Steps:
 1. Check pods: kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE}
@@ -494,10 +465,7 @@ Next Steps:
             }
         }
         always {
-            // Archive deployment manifests
             archiveArtifacts artifacts: 'infrastructure/kubernetes/base/*.yaml', allowEmptyArchive: true
-
-            // Cleanup
             deleteDir()
         }
     }
