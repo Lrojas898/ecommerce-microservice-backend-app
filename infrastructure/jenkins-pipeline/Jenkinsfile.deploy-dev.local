@@ -381,35 +381,111 @@ pipeline {
                 script {
                     echo " Running E2E tests..."
 
+                    def testsPassed = false
+                    def portForwardPid = null
+
                     try {
                         sh """
-                            echo "Waiting for services to stabilize (60s)..."
-                            sleep 60
-
-                            GATEWAY_URL=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-
-                            if [ -z "\$GATEWAY_URL" ]; then
-                                if command -v minikube &> /dev/null; then
-                                    GATEWAY_URL=\$(minikube service api-gateway -n ${K8S_NAMESPACE} --url 2>/dev/null | head -1)
+                            set +e  # Don't exit on error, we'll handle it
+                            
+                            echo "========================================="
+                            echo "Setting up port-forward to api-gateway..."
+                            echo "========================================="
+                            
+                            # Start port-forward in background
+                            kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 18080:80 > /tmp/port-forward.log 2>&1 &
+                            PF_PID=\$!
+                            echo \$PF_PID > /tmp/port-forward.pid
+                            echo "Port-forward started with PID: \$PF_PID"
+                            
+                            # Wait and verify port-forward is working
+                            echo "Waiting for port-forward to be ready..."
+                            for i in {1..30}; do
+                                if curl -s -o /dev/null -w "%{http_code}" http://localhost:18080/actuator/health 2>/dev/null | grep -q "200"; then
+                                    echo "Port-forward is ready!"
+                                    break
                                 fi
+                                if [ \$i -eq 30 ]; then
+                                    echo "Port-forward failed to become ready"
+                                    cat /tmp/port-forward.log
+                                    exit 1
+                                fi
+                                echo "Waiting... (\$i/30)"
+                                sleep 2
+                            done
+                            
+                            # Test connectivity
+                            echo "Testing connectivity to http://localhost:18080..."
+                            HEALTH_STATUS=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18080/actuator/health)
+                            echo "Health check returned: \$HEALTH_STATUS"
+                            
+                            if [ "\$HEALTH_STATUS" != "200" ]; then
+                                echo "Warning: Health check returned \$HEALTH_STATUS, but continuing with tests..."
                             fi
-
-                            if [ -z "\$GATEWAY_URL" ]; then
-                                NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
-                                NODE_IP=\$(kubectl --insecure-skip-tls-verify get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-                                GATEWAY_URL="http://\${NODE_IP}:\${NODE_PORT}"
-                            fi
-
-                            echo "Testing against: \$GATEWAY_URL"
-
+                            
+                            echo "========================================="
+                            echo "Running Maven E2E Tests..."
+                            echo "========================================="
+                            
+                            # Run tests
                             cd tests
                             mvn clean verify -Pe2e-tests \\
-                                -Dtest.base.url=\$GATEWAY_URL \\
+                                -Dtest.base.url=http://localhost:18080 \\
                                 -Dtest.timeout=60000 \\
                                 -DfailIfNoTests=false
+                            
+                            TEST_EXIT=\$?
+                            
+                            # Cleanup
+                            echo "========================================="
+                            echo "Cleaning up port-forward..."
+                            PF_PID=\$(cat /tmp/port-forward.pid 2>/dev/null)
+                            if [ -n "\$PF_PID" ]; then
+                                kill \$PF_PID 2>/dev/null || true
+                                echo "Port-forward (PID: \$PF_PID) terminated"
+                            fi
+                            
+                            # Exit with test result
+                            if [ \$TEST_EXIT -eq 0 ]; then
+                                echo "========================================="
+                                echo "✓ E2E Tests PASSED"
+                                echo "========================================="
+                            else
+                                echo "========================================="
+                                echo "✗ E2E Tests FAILED (exit code: \$TEST_EXIT)"
+                                echo "========================================="
+                            fi
+                            
+                            exit \$TEST_EXIT
                         """
+                        testsPassed = true
                     } catch (Exception e) {
-                        echo "  E2E tests failed or could not run: ${e.message}"
+                        echo "  E2E tests failed: ${e.message}"
+                        
+                        // Cleanup port-forward on error
+                        try {
+                            sh """
+                                PF_PID=\$(cat /tmp/port-forward.pid 2>/dev/null)
+                                if [ -n "\$PF_PID" ]; then
+                                    kill \$PF_PID 2>/dev/null || true
+                                fi
+                            """
+                        } catch (Exception cleanupError) {
+                            echo "Warning: Could not cleanup port-forward: ${cleanupError.message}"
+                        }
+                        
+                        // Show helpful message
+                        echo """
+========================================
+  E2E Tests Failed - Manual Execution
+========================================
+
+You can run tests manually from WSL:
+cd /mnt/c/Users/luism/OneDrive/Documents/ICESI/IngeSoftV/ecommerce-microservice-backend-app/tests
+mvn clean verify -Dtest.base.url="http://\$(minikube ip):32118"
+
+========================================
+"""
                         error("E2E tests failed: ${e.message}")
                     }
                 }
