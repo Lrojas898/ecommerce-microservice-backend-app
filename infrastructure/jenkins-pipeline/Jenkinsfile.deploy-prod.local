@@ -603,8 +603,7 @@ mvn clean verify -Dtest.base.url="http://\$MINIKUBE_IP:32118"
                             echo "Running SonarQube analysis..."
                             mvn sonar:sonar \\
                                 -Dsonar.host.url=http://172.17.0.1:9000 \\
-                                -Dsonar.login=admin \\
-                                -Dsonar.password=DevOpsSonnar123! \\
+                                -Dsonar.token=squ_ed5405cbe3456c97523f39f0eceb7d9c4c26c5b3 \\
                                 -Dsonar.projectKey=ecommerce-e2e-tests \\
                                 -Dsonar.projectName="E-Commerce E2E Tests" \\
                                 -Dsonar.sources=src/main/java \\

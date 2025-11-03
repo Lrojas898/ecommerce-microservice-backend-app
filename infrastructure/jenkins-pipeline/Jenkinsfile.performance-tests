@@ -257,8 +257,7 @@ Duration: ${params.RUN_TIME}
                             echo "Running SonarQube analysis..."
                             ./sonar-scanner/bin/sonar-scanner \\
                                 -Dsonar.host.url=http://172.17.0.1:9000 \\
-                                -Dsonar.login=admin \\
-                                -Dsonar.password=DevOpsSonnar123! \\
+                                -Dsonar.token=squ_1037e66e9bc493d2a288dbca5a9cb503f0637c93 \\
                                 -Dsonar.projectKey=ecommerce-performance-tests \\
                                 -Dsonar.projectName="E-Commerce Performance Tests" \\
                                 -Dsonar.projectVersion=1.0 \\
