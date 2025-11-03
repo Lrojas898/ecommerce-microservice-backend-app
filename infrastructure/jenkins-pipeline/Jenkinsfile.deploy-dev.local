@@ -61,13 +61,13 @@ pipeline {
                     echo " Configuring kubectl for local cluster..."
                     sh """
                         # Verify kubectl is configured
-                        kubectl version --client
+                        kubectl --insecure-skip-tls-verify version --client
 
                         # Check cluster connectivity
-                        kubectl cluster-info
+                        kubectl --insecure-skip-tls-verify cluster-info
 
                         # Set namespace
-                        kubectl config set-context --current --namespace=${K8S_NAMESPACE}
+                        kubectl --insecure-skip-tls-verify config set-context --current --namespace=${K8S_NAMESPACE}
 
                         echo "✓ kubectl configured successfully"
                     """
