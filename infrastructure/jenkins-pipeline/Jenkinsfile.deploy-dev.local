@@ -174,74 +174,22 @@ pipeline {
 
                             echo " Deploying ${service} (${imageTag})..."
 
-                            // Execute kubectl commands with built-in retry logic to avoid CPS issues
-                            timeout(time: 5, unit: 'MINUTES') {
-                                sh """
-                                    set +e
-                                    MAX_RETRIES=3
-                                    RETRY_COUNT=0
-                                    
-                                    while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
-                                        echo "Attempt \$((RETRY_COUNT + 1)) of \$MAX_RETRIES for ${service}..."
-                                        
-                                        echo "Applying manifest for ${service}..."
-                                        kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
-                                        APPLY_STATUS=\$?
-                                        
-                                        if [ \$APPLY_STATUS -eq 0 ]; then
-                                            sleep 2
-                                            
-                                            echo "Updating image for ${service}..."
-                                            kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
-                                            IMAGE_STATUS=\$?
-                                            
-                                            if [ \$IMAGE_STATUS -eq 0 ]; then
-                                                sleep 2
-                                                
-                                                echo "Restarting deployment ${service}..."
-                                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-                                                RESTART_STATUS=\$?
-                                                
-                                                if [ \$RESTART_STATUS -eq 0 ]; then
-                                                    echo "Successfully deployed ${service}"
-                                                    exit 0
-                                                fi
-                                            fi
-                                        fi
-                                        
-                                        RETRY_COUNT=\$((RETRY_COUNT + 1))
-                                        echo "Deployment failed, retrying in 3 seconds..."
-                                        sleep 3
-                                    done
-                                    
-                                    echo "Failed to deploy ${service} after \$MAX_RETRIES attempts"
-                                    exit 1
-                                """
-                            }
-
-                            // Wait for deployment availability using shell-based loop
-                            echo "Waiting for deployment/${service} to become available..."
+                            // Single shell execution - let kubectl handle waiting
                             sh """
-                                set +e
-                                TIMEOUT=${env.SERVICE_READINESS_TIMEOUT}
-                                INTERVAL=5
-                                ELAPSED=0
+                                set -e
+                                echo "Applying manifest for ${service}..."
+                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                                 
-                                while [ \$ELAPSED -lt \$TIMEOUT ]; do
-                                    REPLICAS=\$(kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
-                                    
-                                    if [ "\$REPLICAS" = "1" ] || [ "\$REPLICAS" -gt 0 ]; then
-                                        echo "${service} is available (\$REPLICAS replicas)"
-                                        exit 0
-                                    fi
-                                    
-                                    echo "Waiting for ${service}... (\$ELAPSED/\$TIMEOUT seconds)"
-                                    sleep \$INTERVAL
-                                    ELAPSED=\$((ELAPSED + INTERVAL))
-                                done
+                                echo "Updating image for ${service}..."
+                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
                                 
-                                echo "Timeout: deployment/${service} did not become available within \$TIMEOUT seconds"
-                                exit 1
+                                echo "Restarting deployment ${service}..."
+                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                
+                                echo "Waiting for ${service} to be ready..."
+                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                                
+                                echo "${service} deployed successfully"
                             """
 
                         } else {
@@ -278,74 +226,22 @@ pipeline {
 
                             echo "Deploying ${service} (${imageTag})..."
 
-                            // Execute kubectl commands with built-in retry logic to avoid CPS issues
-                            timeout(time: 5, unit: 'MINUTES') {
-                                sh """
-                                    set +e
-                                    MAX_RETRIES=3
-                                    RETRY_COUNT=0
-                                    
-                                    while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
-                                        echo "Attempt \$((RETRY_COUNT + 1)) of \$MAX_RETRIES for ${service}..."
-                                        
-                                        echo "Applying manifest for ${service}..."
-                                        kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
-                                        APPLY_STATUS=\$?
-                                        
-                                        if [ \$APPLY_STATUS -eq 0 ]; then
-                                            sleep 2
-                                            
-                                            echo "Updating image for ${service}..."
-                                            kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
-                                            IMAGE_STATUS=\$?
-                                            
-                                            if [ \$IMAGE_STATUS -eq 0 ]; then
-                                                sleep 2
-                                                
-                                                echo "Restarting deployment ${service}..."
-                                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-                                                RESTART_STATUS=\$?
-                                                
-                                                if [ \$RESTART_STATUS -eq 0 ]; then
-                                                    echo "Successfully deployed ${service}"
-                                                    exit 0
-                                                fi
-                                            fi
-                                        fi
-                                        
-                                        RETRY_COUNT=\$((RETRY_COUNT + 1))
-                                        echo "Deployment failed, retrying in 3 seconds..."
-                                        sleep 3
-                                    done
-                                    
-                                    echo "Failed to deploy ${service} after \$MAX_RETRIES attempts"
-                                    exit 1
-                                """
-                            }
-
-                            // Wait for deployment availability using shell-based loop
-                            echo "Waiting for deployment/${service} to become available..."
+                            // Single shell execution - let kubectl handle waiting
                             sh """
-                                set +e
-                                TIMEOUT=${env.SERVICE_READINESS_TIMEOUT}
-                                INTERVAL=5
-                                ELAPSED=0
+                                set -e
+                                echo "Applying manifest for ${service}..."
+                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                                 
-                                while [ \$ELAPSED -lt \$TIMEOUT ]; do
-                                    REPLICAS=\$(kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
-                                    
-                                    if [ "\$REPLICAS" = "1" ] || [ "\$REPLICAS" -gt 0 ]; then
-                                        echo "${service} is available (\$REPLICAS replicas)"
-                                        exit 0
-                                    fi
-                                    
-                                    echo "Waiting for ${service}... (\$ELAPSED/\$TIMEOUT seconds)"
-                                    sleep \$INTERVAL
-                                    ELAPSED=\$((ELAPSED + INTERVAL))
-                                done
+                                echo "Updating image for ${service}..."
+                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
                                 
-                                echo "Timeout: deployment/${service} did not become available within \$TIMEOUT seconds"
-                                exit 1
+                                echo "Restarting deployment ${service}..."
+                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                
+                                echo "Waiting for ${service} to be ready..."
+                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                                
+                                echo "${service} deployed successfully"
                             """
 
                         } else {
@@ -369,74 +265,22 @@ pipeline {
 
                         echo " Deploying api-gateway (${imageTag})..."
 
-                        // Execute kubectl commands with built-in retry logic to avoid CPS issues
-                        timeout(time: 5, unit: 'MINUTES') {
-                            sh """
-                                set +e
-                                MAX_RETRIES=3
-                                RETRY_COUNT=0
-                                
-                                while [ \$RETRY_COUNT -lt \$MAX_RETRIES ]; do
-                                    echo "Attempt \$((RETRY_COUNT + 1)) of \$MAX_RETRIES for api-gateway..."
-                                    
-                                    echo "Applying manifest for api-gateway..."
-                                    kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
-                                    APPLY_STATUS=\$?
-                                    
-                                    if [ \$APPLY_STATUS -eq 0 ]; then
-                                        sleep 2
-                                        
-                                        echo "Updating image for api-gateway..."
-                                        kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
-                                        IMAGE_STATUS=\$?
-                                        
-                                        if [ \$IMAGE_STATUS -eq 0 ]; then
-                                            sleep 2
-                                            
-                                            echo "Restarting deployment api-gateway..."
-                                            kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
-                                            RESTART_STATUS=\$?
-                                            
-                                            if [ \$RESTART_STATUS -eq 0 ]; then
-                                                echo "Successfully deployed api-gateway"
-                                                exit 0
-                                            fi
-                                        fi
-                                    fi
-                                    
-                                    RETRY_COUNT=\$((RETRY_COUNT + 1))
-                                    echo "Deployment failed, retrying in 3 seconds..."
-                                    sleep 3
-                                done
-                                
-                                echo "Failed to deploy api-gateway after \$MAX_RETRIES attempts"
-                                exit 1
-                            """
-                        }
-
-                        // Wait for deployment availability using shell-based loop
-                        echo "Waiting for deployment/api-gateway to become available..."
+                        // Single shell execution - let kubectl handle waiting
                         sh """
-                            set +e
-                            TIMEOUT=${env.SERVICE_READINESS_TIMEOUT}
-                            INTERVAL=5
-                            ELAPSED=0
+                            set -e
+                            echo "Applying manifest for api-gateway..."
+                            kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
                             
-                            while [ \$ELAPSED -lt \$TIMEOUT ]; do
-                                REPLICAS=\$(kubectl --insecure-skip-tls-verify get deployment/api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
-                                
-                                if [ "\$REPLICAS" = "1" ] || [ "\$REPLICAS" -gt 0 ]; then
-                                    echo "api-gateway is available (\$REPLICAS replicas)"
-                                    exit 0
-                                fi
-                                
-                                echo "Waiting for api-gateway... (\$ELAPSED/\$TIMEOUT seconds)"
-                                sleep \$INTERVAL
-                                ELAPSED=\$((ELAPSED + INTERVAL))
-                            done
+                            echo "Updating image for api-gateway..."
+                            kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
                             
-                            echo "Timeout: deployment/api-gateway did not become available within \$TIMEOUT seconds"
-                            exit 1
+                            echo "Restarting deployment api-gateway..."
+                            kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
+                            
+                            echo "Waiting for api-gateway to be ready..."
+                            kubectl --insecure-skip-tls-verify rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                            
+                            echo "api-gateway deployed successfully"
                         """
 
                     } else {
