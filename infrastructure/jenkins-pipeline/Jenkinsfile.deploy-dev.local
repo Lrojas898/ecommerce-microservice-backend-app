@@ -386,22 +386,28 @@ pipeline {
                             set -e
                             
                             echo "========================================="
-                            echo "Obtaining Minikube API Gateway URL..."
+                            echo "Configuring API Gateway URL for E2E Tests"
                             echo "========================================="
                             
-                            # Get Minikube IP and NodePort using kubectl
-                            NODE_IP=\$(kubectl --insecure-skip-tls-verify get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-                            NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
-                            
-                            if [ -z "\$NODE_IP" ] || [ -z "\$NODE_PORT" ]; then
-                                echo "Error: Could not obtain Minikube IP or NodePort"
-                                echo "NODE_IP: \$NODE_IP"
-                                echo "NODE_PORT: \$NODE_PORT"
-                                exit 1
-                            fi
-                            
-                            GATEWAY_URL="http://\${NODE_IP}:\${NODE_PORT}"
+                            # Use Docker Gateway IP with socat port-forward
+                            # socat must be running: sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 TCP:192.168.49.2:32118 &
+                            GATEWAY_URL="http://172.17.0.1:18080"
                             echo "API Gateway URL: \$GATEWAY_URL"
+                            echo "(via socat port-forward from Docker gateway to Minikube)"
+                            
+                            # Quick connectivity test
+                            echo ""
+                            echo "Testing connectivity..."
+                            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \$GATEWAY_URL/app/api/products --max-time 5 || echo "000")
+                            
+                            if [ "\$HTTP_CODE" = "000" ]; then
+                                echo "❌ ERROR: Cannot reach API Gateway at \$GATEWAY_URL"
+                                echo "Make sure socat port-forward is running:"
+                                echo "  sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 TCP:192.168.49.2:32118 &"
+                                exit 1
+                            else
+                                echo "✓ API Gateway is reachable (HTTP \$HTTP_CODE)"
+                            fi
                             
                             echo ""
                             echo "========================================="

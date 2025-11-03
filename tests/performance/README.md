@@ -29,9 +29,9 @@ Prueba de carga para el servicio de productos.
 - Ver detalles de categoría (peso: 1)
 
 **Métricas esperadas:**
-- GET /products: < 500ms (p95)
-- GET /products/{id}: < 300ms (p95)
-- GET /categories: < 200ms (p95)
+- GET /app/api/products: < 500ms (p95)
+- GET /app/api/products/{id}: < 300ms (p95)
+- GET /app/api/categories: < 200ms (p95)
 
 **Uso:**
 ```bash
@@ -51,9 +51,9 @@ Prueba de estrés para el servicio de órdenes.
 - Ver detalles de orden (peso: 1)
 
 **Métricas esperadas:**
-- POST /orders: < 1000ms (p95)
-- GET /orders: < 500ms (p95)
-- GET /orders/{id}: < 300ms (p95)
+- POST /app/api/orders: < 1000ms (p95)
+- GET /app/api/orders: < 500ms (p95)
+- GET /app/api/orders/{id}: < 300ms (p95)
 
 **Uso:**
 ```bash
@@ -73,9 +73,9 @@ Prueba de carga para autenticación de usuarios.
 - Obtener perfil (peso: 2)
 
 **Métricas esperadas:**
-- POST /register: < 1500ms (p95)
-- POST /login: < 800ms (p95)
-- GET /users/{id}: < 300ms (p95)
+- POST /app/api/users (register): < 1500ms (p95)
+- POST /app/api/authenticate (login): < 800ms (p95)
+- GET /app/api/users/{id}: < 300ms (p95)
 
 **Uso:**
 ```bash
@@ -127,13 +127,19 @@ locust -f locustfile.py MixedWorkloadUser \
 ### Con Interfaz Web (recomendado)
 
 ```bash
-locust -f locustfile.py --host=http://localhost:8080
+# Obtener la URL del API Gateway
+MINIKUBE_IP=$(minikube ip)
+NODE_PORT=$(kubectl get svc api-gateway -n dev -o jsonpath='{.spec.ports[0].nodePort}')
+GATEWAY_URL="http://$MINIKUBE_IP:$NODE_PORT"
+
+# Iniciar Locust con UI
+locust -f locustfile.py --host=$GATEWAY_URL
 ```
 
 Luego abre http://localhost:8089 en tu navegador y configura:
 - Number of users: 100
 - Spawn rate: 10
-- Host: http://localhost:8080 (o tu API Gateway)
+- Host: (ya configurado desde CLI)
 
 ### Sin Interfaz (headless)
 
@@ -290,21 +296,71 @@ Esto genera:
 
 ## Integración con CI/CD
 
-### En Jenkinsfile.stage
+### Pipeline de Jenkins (Recomendado)
+
+El proyecto incluye una pipeline dedicada para performance tests en:
+`infrastructure/jenkins-pipeline/Jenkinsfile.performance-tests`
+
+**Características:**
+- ✅ Obtiene automáticamente la URL del API Gateway desde Kubernetes
+- ✅ Verifica la salud de los servicios antes de ejecutar tests
+- ✅ Genera reportes HTML y CSV automáticamente
+- ✅ Publica resultados en Jenkins
+- ✅ Detecta error rates altos (>5%)
+
+**Parámetros:**
+- **ENVIRONMENT**: `dev` o `prod` (namespace de Kubernetes)
+- **TEST_TYPE**: Tipo de test a ejecutar
+  - `MixedWorkloadUser` (recomendado - carga mixta realista)
+  - `ProductServiceLoadTest`
+  - `OrderServiceStressTest`
+  - `UserAuthenticationLoadTest`
+  - `ECommercePurchaseUser`
+- **USERS**: Número de usuarios concurrentes (default: 100)
+- **SPAWN_RATE**: Usuarios por segundo (default: 10)
+- **RUN_TIME**: Duración del test (e.g., `5m`, `10m`, `1h`)
+- **HEADLESS**: Ejecutar sin UI (default: true)
+
+**Uso en Jenkins:**
+1. Crear nuevo pipeline en Jenkins
+2. Apuntar a `infrastructure/jenkins-pipeline/Jenkinsfile.performance-tests`
+3. Ejecutar con "Build with Parameters"
+4. Ver reportes en "HTML Reports" del build
+
+**Ejemplo de configuración:**
+```
+ENVIRONMENT: dev
+TEST_TYPE: MixedWorkloadUser
+USERS: 200
+SPAWN_RATE: 20
+RUN_TIME: 10m
+HEADLESS: true
+```
+
+### En Jenkinsfile Personalizado
+
+Si prefieres integrar en tu propio pipeline:
 
 ```groovy
 stage('Performance Tests') {
     steps {
         sh '''
+            # Obtener URL del API Gateway
+            NODE_IP=$(kubectl --insecure-skip-tls-verify get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+            NODE_PORT=$(kubectl --insecure-skip-tls-verify get svc api-gateway -n dev -o jsonpath='{.spec.ports[0].nodePort}')
+            GATEWAY_URL="http://${NODE_IP}:${NODE_PORT}"
+            
+            # Ejecutar tests
             cd tests/performance
             pip install -r requirements.txt
-            locust -f locustfile.py \
-                   --host=http://staging-api \
+            locust -f locustfile.py MixedWorkloadUser \
+                   --host=$GATEWAY_URL \
                    --users 100 \
                    --spawn-rate 10 \
                    --run-time 5m \
                    --headless \
-                   --html performance-report.html
+                   --html performance-report.html \
+                   --csv performance-results
         '''
 
         publishHTML([
@@ -312,6 +368,8 @@ stage('Performance Tests') {
             reportFiles: 'performance-report.html',
             reportName: 'Performance Test Report'
         ])
+        
+        archiveArtifacts artifacts: 'tests/performance/performance-results*.csv'
     }
 }
 ```

@@ -1,0 +1,278 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'prod'], description: 'Target environment for performance tests')
+        choice(name: 'TEST_TYPE', choices: ['MixedWorkloadUser', 'ProductServiceLoadTest', 'OrderServiceStressTest', 'UserAuthenticationLoadTest', 'ECommercePurchaseUser'], description: 'Type of performance test to run')
+        string(name: 'USERS', defaultValue: '100', description: 'Number of concurrent users')
+        string(name: 'SPAWN_RATE', defaultValue: '10', description: 'Users spawned per second')
+        string(name: 'RUN_TIME', defaultValue: '5m', description: 'Test duration (e.g., 5m, 10m, 1h)')
+        booleanParam(name: 'HEADLESS', defaultValue: true, description: 'Run in headless mode (no web UI)')
+    }
+
+    environment {
+        K8S_NAMESPACE = "${params.ENVIRONMENT}"
+        REPORT_NAME = "performance-report-${params.ENVIRONMENT}-${BUILD_NUMBER}"
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 2, unit: 'HOURS')
+        timestamps()
+    }
+
+    stages {
+        stage('Initialize') {
+            steps {
+                script {
+                    echo """
+========================================
+  Performance Tests
+========================================
+Environment: ${params.ENVIRONMENT}
+Test Type: ${params.TEST_TYPE}
+Users: ${params.USERS}
+Spawn Rate: ${params.SPAWN_RATE}
+Duration: ${params.RUN_TIME}
+Headless: ${params.HEADLESS}
+========================================
+"""
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Get API Gateway URL') {
+            steps {
+                script {
+                    echo "📡 Configuring API Gateway URL..."
+                    
+                    // Use Docker Gateway IP with socat port-forward
+                    // socat must be running: sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 TCP:192.168.49.2:32118 &
+                    env.API_GATEWAY_URL = "http://172.17.0.1:18080"
+                    
+                    echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
+                    echo "  (via socat port-forward from Docker gateway to Minikube)"
+                }
+            }
+        }
+
+        stage('Verify Services Health') {
+            steps {
+                script {
+                    echo "🏥 Checking services health..."
+                    sh """
+                        echo "Testing connectivity to ${env.API_GATEWAY_URL}"
+                        
+                        # Try to reach health endpoint (if exists) or any endpoint
+                        HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" ${env.API_GATEWAY_URL}/app/api/products || echo "000")
+                        
+                        if [ "\$HTTP_CODE" = "000" ]; then
+                            echo "❌ Cannot reach API Gateway"
+                            exit 1
+                        else
+                            echo "✓ API Gateway is reachable (HTTP \$HTTP_CODE)"
+                        fi
+                        
+                        echo ""
+                        echo "Kubernetes Services Status:"
+                        kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} | grep -E "(api-gateway|product-service|order-service|user-service)"
+                    """
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo "📦 Installing Locust and dependencies..."
+                    sh """
+                        cd tests/performance
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
+                        locust --version
+                    """
+                }
+            }
+        }
+
+        stage('Run Performance Tests') {
+            steps {
+                script {
+                    echo """
+========================================
+🚀 Starting Performance Tests
+========================================
+Target: ${env.API_GATEWAY_URL}
+Test Type: ${params.TEST_TYPE}
+Users: ${params.USERS}
+Spawn Rate: ${params.SPAWN_RATE}
+Duration: ${params.RUN_TIME}
+========================================
+"""
+
+                    def headlessFlag = params.HEADLESS ? '--headless' : ''
+                    def reportFlags = params.HEADLESS ? "--html ${env.REPORT_NAME}.html --csv ${env.REPORT_NAME}" : ''
+
+                    try {
+                        sh """
+                            cd tests/performance
+                            
+                            locust -f locustfile.py ${params.TEST_TYPE} \\
+                                --host=${env.API_GATEWAY_URL} \\
+                                --users ${params.USERS} \\
+                                --spawn-rate ${params.SPAWN_RATE} \\
+                                --run-time ${params.RUN_TIME} \\
+                                ${headlessFlag} \\
+                                ${reportFlags}
+                        """
+                        
+                        echo """
+========================================
+✓ Performance Tests Completed
+========================================
+"""
+                    } catch (Exception e) {
+                        echo "⚠️ Performance tests encountered issues: ${e.message}"
+                        echo "This may indicate performance problems or test failures"
+                        
+                        // Don't fail the pipeline, just mark as unstable
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+        }
+
+        stage('Analyze Results') {
+            when {
+                expression { params.HEADLESS }
+            }
+            steps {
+                script {
+                    echo "📊 Analyzing performance test results..."
+                    
+                    sh """
+                        cd tests/performance
+                        
+                        if [ -f "${env.REPORT_NAME}_stats.csv" ]; then
+                            echo ""
+                            echo "========================================="
+                            echo "  Performance Summary"
+                            echo "========================================="
+                            head -20 ${env.REPORT_NAME}_stats.csv
+                            echo ""
+                            
+                            # Check for high error rates
+                            ERRORS=\$(awk -F, 'NR>1 {sum+=\$8} END {print sum}' ${env.REPORT_NAME}_stats.csv || echo "0")
+                            TOTAL=\$(awk -F, 'NR>1 {sum+=\$2} END {print sum}' ${env.REPORT_NAME}_stats.csv || echo "1")
+                            ERROR_RATE=\$(echo "scale=2; \$ERRORS / \$TOTAL * 100" | bc || echo "0")
+                            
+                            echo "Total Requests: \$TOTAL"
+                            echo "Failed Requests: \$ERRORS"
+                            echo "Error Rate: \$ERROR_RATE%"
+                            
+                            # Fail if error rate is too high (> 5%)
+                            if (( \$(echo "\$ERROR_RATE > 5.0" | bc -l) )); then
+                                echo "❌ ERROR RATE TOO HIGH: \$ERROR_RATE%"
+                                exit 1
+                            fi
+                        else
+                            echo "⚠️ No stats file found"
+                        fi
+                    """
+                }
+            }
+        }
+
+        stage('Publish Results') {
+            when {
+                expression { params.HEADLESS && fileExists("tests/performance/${env.REPORT_NAME}.html") }
+            }
+            steps {
+                script {
+                    echo "📤 Publishing performance test reports..."
+                    
+                    publishHTML([
+                        reportDir: 'tests/performance',
+                        reportFiles: "${env.REPORT_NAME}.html",
+                        reportName: "Performance Test Report - ${params.ENVIRONMENT}",
+                        keepAll: true,
+                        alwaysLinkToLastBuild: true
+                    ])
+                    
+                    // Archive CSV results
+                    archiveArtifacts artifacts: "tests/performance/${env.REPORT_NAME}*.csv", allowEmptyArchive: true
+                    archiveArtifacts artifacts: "tests/performance/${env.REPORT_NAME}.html", allowEmptyArchive: true
+                    
+                    echo "✓ Reports published successfully"
+                }
+            }
+        }
+
+        stage('Summary') {
+            steps {
+                script {
+                    echo """
+========================================
+  Performance Test Summary
+========================================
+✓ Environment: ${params.ENVIRONMENT}
+✓ Test Type: ${params.TEST_TYPE}
+✓ Users: ${params.USERS}
+✓ Spawn Rate: ${params.SPAWN_RATE}
+✓ Duration: ${params.RUN_TIME}
+✓ Report: ${env.REPORT_NAME}.html
+
+View Results:
+- HTML Report: Check Published HTML Reports
+- CSV Data: Check Build Artifacts
+- Full Logs: See console output above
+
+Next Steps:
+1. Review report for performance bottlenecks
+2. Check error rates and response times
+3. Compare with previous test runs
+4. Scale services if needed
+========================================
+"""
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo "✅ Performance tests completed successfully"
+            }
+        }
+        unstable {
+            script {
+                echo "⚠️ Performance tests completed with warnings"
+                echo "Check the report for high error rates or slow response times"
+            }
+        }
+        failure {
+            script {
+                echo "❌ Performance tests failed"
+                echo "Collecting diagnostic information..."
+                
+                sh """
+                    kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} || true
+                    kubectl --insecure-skip-tls-verify top nodes || true
+                    kubectl --insecure-skip-tls-verify top pods -n ${K8S_NAMESPACE} || true
+                """
+            }
+        }
+        always {
+            cleanWs(deleteDirs: true, patterns: [
+                [pattern: 'tests/performance/*.log', type: 'INCLUDE']
+            ])
+        }
+    }
+}

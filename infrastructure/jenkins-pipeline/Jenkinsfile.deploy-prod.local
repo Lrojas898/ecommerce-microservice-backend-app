@@ -60,16 +60,10 @@ pipeline {
                 script {
                     echo " Configuring kubectl for local cluster..."
                     sh """
-                        # Verify kubectl is configured
-                        kubectl version --client
-
-                        # Check cluster connectivity
-                        kubectl cluster-info
-
-                        # Set namespace
-                        kubectl config set-context --current --namespace=${K8S_NAMESPACE}
-
-                        echo "✓ kubectl configured successfully"
+                        kubectl --insecure-skip-tls-verify version --client
+                        kubectl --insecure-skip-tls-verify cluster-info
+                        kubectl --insecure-skip-tls-verify config set-context --current --namespace=${K8S_NAMESPACE}
+                        echo "kubectl configured successfully"
                     """
                 }
             }
@@ -80,8 +74,8 @@ pipeline {
                 script {
                     echo " Ensuring namespace exists..."
                     sh """
-                        kubectl get namespace ${K8S_NAMESPACE} || kubectl create namespace ${K8S_NAMESPACE}
-                        kubectl get namespace ${K8S_NAMESPACE}
+                        kubectl --insecure-skip-tls-verify get namespace ${K8S_NAMESPACE} || kubectl --insecure-skip-tls-verify create namespace ${K8S_NAMESPACE}
+                        kubectl --insecure-skip-tls-verify get namespace ${K8S_NAMESPACE}
                     """
                 }
             }
@@ -102,9 +96,9 @@ pipeline {
                         }
                     } else {
                         try {
-                            def slurper = new groovy.json.JsonSlurper()
-                            def parsed = slurper.parseText(params.SERVICE_VERSIONS)
-                            serviceVersionMap = parsed.collectEntries { k, v -> [k.toString(), v.toString()] }
+                            // Convert LazyMap to serializable HashMap (don't store JsonSlurper in variable)
+                            def parsed = new groovy.json.JsonSlurper().parseText(params.SERVICE_VERSIONS)
+                            serviceVersionMap = new HashMap<>(parsed.collectEntries { k, v -> [k.toString(), v.toString()] })
 
                             // Detect changed services (version != 'latest')
                             serviceVersionMap.each { service, version ->
@@ -188,28 +182,18 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
             steps {
                 script {
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
-                    def persistentServices = ['postgresql', 'postgres']
 
                     echo "🧹 Cleaning up resources for services to be deployed..."
 
                     servicesToDeploy.each { service ->
-                        if (!persistentServices.contains(service)) {
-                            echo ">>> Preparing ${service} for redeployment"
-                            sh """
-                                set -e
-
-                                # Scale down to free resources
-                                kubectl scale deployment/${service} --replicas=0 -n ${K8S_NAMESPACE} 2>/dev/null || echo "Deployment ${service} not found (first deploy)"
-
-                                # Wait for pods to terminate
-                                kubectl wait --for=delete pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=60s 2>/dev/null || echo "No pods to delete for ${service}"
-
-                                # Clean old replica sets (keep last 2)
-                                kubectl get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | head -n -2 | xargs -r kubectl delete -n ${K8S_NAMESPACE} || true
-
-                                echo "✓ ${service} cleanup complete"
-                            """
-                        }
+                        echo ">>> Preparing ${service} for redeployment"
+                        sh """
+                            set -e
+                            kubectl --insecure-skip-tls-verify scale deployment/${service} --replicas=0 -n ${K8S_NAMESPACE} 2>/dev/null || echo "Deployment ${service} not found (first deploy)"
+                            kubectl --insecure-skip-tls-verify wait --for=delete pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=60s 2>/dev/null || echo "No pods to delete for ${service}"
+                            kubectl --insecure-skip-tls-verify get rs -n ${K8S_NAMESPACE} -l app=${service} --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | head -n -2 | xargs -r kubectl --insecure-skip-tls-verify delete -n ${K8S_NAMESPACE} || true
+                            echo "${service} cleanup complete"
+                        """
                     }
                 }
             }
@@ -220,8 +204,7 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                 script {
                     def infraServices = ['service-discovery']
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
-                    def slurper = new groovy.json.JsonSlurper()
-                    def serviceVersionMap = slurper.parseText(env.SERVICE_VERSION_MAP)
+                    def serviceVersionMap = new HashMap<>(new groovy.json.JsonSlurper().parseText(env.SERVICE_VERSION_MAP))
 
                     infraServices.each { service ->
                         if (servicesToDeploy.contains(service)) {
@@ -230,39 +213,23 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
 
                             echo " Deploying ${service} (${imageTag})..."
 
-                            // Execute each kubectl command in its own sh block
-                            sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-                            sh script: "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-                            sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-
-                            // Wait using Groovy (Jenkins-safe) instead of kubectl rollout status
-                            def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
-                            def checkInterval = 2
-                            def maxAttempts = timeoutSeconds / checkInterval
-                            def available = false
-
-                            for (int i = 0; i < maxAttempts; i++) {
-                                try {
-                                    def output = sh(
-                                        script: "kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
-                                        returnStdout: true
-                                    ).trim()
-
-                                    if (output == "1") {
-                                        available = true
-                                        break
-                                    }
-                                } catch (Exception e) {
-                                    // Ignore errors during checks
-                                }
-                                sleep(checkInterval)
-                            }
-
-                            if (!available) {
-                                error("Timeout waiting for ${service} to become available")
-                            }
-
-                            echo "✓ ${service} deployed successfully"
+                            // Single shell execution - let kubectl handle waiting
+                            sh """
+                                set -e
+                                echo "Applying manifest for ${service}..."
+                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                                
+                                echo "Updating image for ${service}..."
+                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                                
+                                echo "Restarting deployment ${service}..."
+                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                
+                                echo "Waiting for ${service} to be ready..."
+                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                                
+                                echo "${service} deployed successfully"
+                            """
                         } else {
                             echo "  Skipping ${service} (no changes)"
                         }
@@ -286,8 +253,7 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                     ]
 
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
-                    def slurper = new groovy.json.JsonSlurper()
-                    def serviceVersionMap = slurper.parseText(env.SERVICE_VERSION_MAP)
+                    def serviceVersionMap = new HashMap<>(new groovy.json.JsonSlurper().parseText(env.SERVICE_VERSION_MAP))
 
                     echo " Deploying microservices in order..."
 
@@ -296,41 +262,25 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                             def version = serviceVersionMap[service] ?: 'latest'
                             def imageTag = "${params.DOCKER_USER}/${service}:${version}"
 
-                            echo ">>> Deploying ${service} (${imageTag})..."
+                            echo "Deploying ${service} (${imageTag})..."
 
-                            // Execute each kubectl command in its own sh block
-                            sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-                            sh script: "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-                            sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-
-                            // Wait using Groovy (Jenkins-safe) instead of kubectl rollout status
-                            def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
-                            def checkInterval = 2
-                            def maxAttempts = timeoutSeconds / checkInterval
-                            def available = false
-
-                            for (int i = 0; i < maxAttempts; i++) {
-                                try {
-                                    def output = sh(
-                                        script: "kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
-                                        returnStdout: true
-                                    ).trim()
-
-                                    if (output == "1") {
-                                        available = true
-                                        break
-                                    }
-                                } catch (Exception e) {
-                                    // Ignore errors during checks
-                                }
-                                sleep(checkInterval)
-                            }
-
-                            if (!available) {
-                                error("Timeout waiting for ${service} to become available")
-                            }
-
-                            echo "✓ ${service} deployed successfully"
+                            // Single shell execution - let kubectl handle waiting
+                            sh """
+                                set -e
+                                echo "Applying manifest for ${service}..."
+                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                                
+                                echo "Updating image for ${service}..."
+                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                                
+                                echo "Restarting deployment ${service}..."
+                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                
+                                echo "Waiting for ${service} to be ready..."
+                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                                
+                                echo "${service} deployed successfully"
+                            """
                         } else {
                             echo "  Skipping ${service} (no changes)"
                         }
@@ -345,46 +295,29 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
 
                     if (servicesToDeploy.contains('api-gateway')) {
-                        def slurper = new groovy.json.JsonSlurper()
-                        def serviceVersionMap = slurper.parseText(env.SERVICE_VERSION_MAP)
+                        def serviceVersionMap = new HashMap<>(new groovy.json.JsonSlurper().parseText(env.SERVICE_VERSION_MAP))
                         def version = serviceVersionMap['api-gateway'] ?: 'latest'
                         def imageTag = "${params.DOCKER_USER}/api-gateway:${version}"
 
                         echo " Deploying api-gateway (${imageTag})..."
 
-                        // Execute each kubectl command in its own sh block
-                        sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-                        sh script: "kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-                        sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
-
-                        // Wait using Groovy (Jenkins-safe) instead of kubectl rollout status
-                        def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
-                        def checkInterval = 2
-                        def maxAttempts = timeoutSeconds / checkInterval
-                        def available = false
-
-                        for (int i = 0; i < maxAttempts; i++) {
-                            try {
-                                def output = sh(
-                                    script: "kubectl --insecure-skip-tls-verify get deployment/api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
-                                    returnStdout: true
-                                ).trim()
-
-                                if (output == "1") {
-                                    available = true
-                                    break
-                                }
-                            } catch (Exception e) {
-                                // Ignore errors during checks
-                            }
-                            sleep(checkInterval)
-                        }
-
-                        if (!available) {
-                            error("Timeout waiting for api-gateway to become available")
-                        }
-
-                        echo "✓ API Gateway deployed successfully"
+                        // Single shell execution - let kubectl handle waiting
+                        sh """
+                            set -e
+                            echo "Applying manifest for api-gateway..."
+                            kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
+                            
+                            echo "Updating image for api-gateway..."
+                            kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
+                            
+                            echo "Restarting deployment api-gateway..."
+                            kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
+                            
+                            echo "Waiting for api-gateway to be ready..."
+                            kubectl --insecure-skip-tls-verify rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${env.SERVICE_READINESS_TIMEOUT}s
+                            
+                            echo "api-gateway deployed successfully"
+                        """
                     } else {
                         echo "  Skipping api-gateway (no changes)"
                     }
@@ -403,20 +336,20 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
 
                         # Show all pods
                         echo "Pods:"
-                        kubectl get pods -n ${K8S_NAMESPACE} -o wide
+                        kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -o wide
 
                         # Show services
                         echo ""
                         echo "Services:"
-                        kubectl get svc -n ${K8S_NAMESPACE}
+                        kubectl --insecure-skip-tls-verify get svc -n ${K8S_NAMESPACE}
 
                         # Check for issues
                         echo ""
                         echo "Checking for pod issues..."
-                        PROBLEM_PODS=\$(kubectl get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null | wc -l)
+                        PROBLEM_PODS=\$(kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null | wc -l)
                         if [ \$PROBLEM_PODS -gt 0 ]; then
                             echo "  Warning: \$PROBLEM_PODS pod(s) not in Running state"
-                            kubectl get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded
+                            kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded
                         else
                             echo "✓ All pods are running"
                         fi
@@ -426,10 +359,10 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                         echo "Checking for duplicate pods..."
                         SERVICES=\$(echo "${ALL_SERVICES}" | tr ',' ' ')
                         for service in \$SERVICES; do
-                            POD_COUNT=\$(kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers 2>/dev/null | wc -l)
+                            POD_COUNT=\$(kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=\$service --no-headers 2>/dev/null | wc -l)
                             if [ \$POD_COUNT -gt 1 ]; then
                                 echo "  Multiple pods found for \$service (\$POD_COUNT pods) - cleaning up..."
-                                kubectl get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' | xargs -r kubectl delete pod -n ${K8S_NAMESPACE} || true
+                                kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=\$service --sort-by=.metadata.creationTimestamp --no-headers | head -n -1 | awk '{print \$1}' | xargs -r kubectl --insecure-skip-tls-verify delete pod -n ${K8S_NAMESPACE} || true
                             fi
                         done
 
@@ -452,7 +385,7 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                         echo "========================================="
 
                         # Get API Gateway URL (minikube or LoadBalancer)
-                        GATEWAY_URL=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+                        GATEWAY_URL=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 
                         if [ -z "\$GATEWAY_URL" ]; then
                             # Try minikube service URL
@@ -463,9 +396,9 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
 
                         if [ -z "\$GATEWAY_URL" ]; then
                             # Get NodePort
-                            NODE_PORT=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
+                            NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
                             if [ -n "\$NODE_PORT" ]; then
-                                NODE_IP=\$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+                                NODE_IP=\$(kubectl --insecure-skip-tls-verify get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
                                 GATEWAY_URL="http://\${NODE_IP}:\${NODE_PORT}"
                             fi
                         fi
@@ -473,10 +406,10 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
                         if [ -n "\$GATEWAY_URL" ]; then
                             echo "✓ API Gateway URL: \$GATEWAY_URL"
                             echo "✓ Health Check: \$GATEWAY_URL/actuator/health"
-                            echo "✓ Eureka Dashboard: http://\$(kubectl get svc service-discovery -n ${K8S_NAMESPACE} -o jsonpath='{.spec.clusterIP}'):8761"
+                            echo "✓ Eureka Dashboard: http://\$(kubectl --insecure-skip-tls-verify get svc service-discovery -n ${K8S_NAMESPACE} -o jsonpath='{.spec.clusterIP}'):8761"
                         else
                             echo "  Could not determine external URL"
-                            echo "Use: kubectl port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80"
+                            echo "Use: kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80"
                         fi
 
                         echo "========================================="
@@ -492,39 +425,66 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
             steps {
                 script {
                     echo " Running E2E tests..."
-
+                    
                     try {
                         sh """
-                            # Wait for services to stabilize
-                            echo "Waiting for services to stabilize (60s)..."
-                            sleep 60
-
-                            # Get API Gateway URL
-                            GATEWAY_URL=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-
-                            if [ -z "\$GATEWAY_URL" ]; then
-                                if command -v minikube &> /dev/null; then
-                                    GATEWAY_URL=\$(minikube service api-gateway -n ${K8S_NAMESPACE} --url 2>/dev/null | head -1)
-                                fi
+                            set -e
+                            
+                            echo "========================================="
+                            echo "Configuring API Gateway URL for E2E Tests"
+                            echo "========================================="
+                            
+                            # Use Docker Gateway IP with socat port-forward
+                            # socat must be running: sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 TCP:192.168.49.2:32118 &
+                            GATEWAY_URL="http://172.17.0.1:18080"
+                            echo "API Gateway URL: \$GATEWAY_URL"
+                            echo "(via socat port-forward from Docker gateway to Minikube)"
+                            
+                            # Quick connectivity test
+                            echo ""
+                            echo "Testing connectivity..."
+                            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \$GATEWAY_URL/app/api/products --max-time 5 || echo "000")
+                            
+                            if [ "\$HTTP_CODE" = "000" ]; then
+                                echo "❌ ERROR: Cannot reach API Gateway at \$GATEWAY_URL"
+                                echo "Make sure socat port-forward is running:"
+                                echo "  sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 TCP:192.168.49.2:32118 &"
+                                exit 1
+                            else
+                                echo "✓ API Gateway is reachable (HTTP \$HTTP_CODE)"
                             fi
-
-                            if [ -z "\$GATEWAY_URL" ]; then
-                                NODE_PORT=\$(kubectl get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
-                                NODE_IP=\$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-                                GATEWAY_URL="http://\${NODE_IP}:\${NODE_PORT}"
-                            fi
-
-                            echo "Testing against: \$GATEWAY_URL"
-
-                            # Run E2E tests
+                            
+                            echo ""
+                            echo "========================================="
+                            echo "Running Maven E2E Tests..."
+                            echo "========================================="
+                            
+                            # Navigate to tests directory and run tests
                             cd tests
-                            mvn clean verify -Pe2e-tests \\
-                                -Dtest.base.url=\$GATEWAY_URL \\
+                            mvn clean verify \\
+                                -Dtest.base.url="\$GATEWAY_URL" \\
                                 -Dtest.timeout=60000 \\
                                 -DfailIfNoTests=false
+                            
+                            echo ""
+                            echo "========================================="
+                            echo "✓ E2E Tests PASSED"
+                            echo "========================================="
                         """
                     } catch (Exception e) {
-                        echo "  E2E tests failed or could not run: ${e.message}"
+                        echo "  E2E tests failed: ${e.message}"
+                        echo """
+========================================
+  E2E Tests Failed
+========================================
+
+You can run tests manually from WSL:
+cd /mnt/c/Users/luism/OneDrive/Documents/ICESI/IngeSoftV/ecommerce-microservice-backend-app/tests
+MINIKUBE_IP=\$(minikube ip)
+mvn clean verify -Dtest.base.url="http://\$MINIKUBE_IP:32118"
+
+========================================
+"""
                         error("E2E tests failed: ${e.message}")
                     }
                 }
@@ -558,9 +518,9 @@ Services Skipped (${skippedServices.size()}):
 ${skippedServices.collect { "  • ${it}" }.join('\n') ?: '  (none)'}
 
 Next Steps:
-1. Check pods: kubectl get pods -n ${K8S_NAMESPACE}
-2. Check logs: kubectl logs -f -l app=<service> -n ${K8S_NAMESPACE}
-3. Port forward: kubectl port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80
+1. Check pods: kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE}
+2. Check logs: kubectl --insecure-skip-tls-verify logs -f -l app=<service> -n ${K8S_NAMESPACE}
+3. Port forward: kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 8080:80
 ========================================
                     """
                 }
@@ -580,8 +540,8 @@ Next Steps:
                 echo "Collecting diagnostic information..."
 
                 sh """
-                    kubectl get pods -n ${K8S_NAMESPACE} || true
-                    kubectl get events -n ${K8S_NAMESPACE} --sort-by=.firstTimestamp | tail -20 || true
+                    kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} || true
+                    kubectl --insecure-skip-tls-verify get events -n ${K8S_NAMESPACE} --sort-by=.firstTimestamp | tail -20 || true
                 """
             }
         }
