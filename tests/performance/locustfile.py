@@ -31,7 +31,52 @@ import json
 from locust import HttpUser, task, between, SequentialTaskSet
 
 
-class ProductServiceLoadTest(HttpUser):
+# Authentication credentials (matching E2E tests - created by database migration)
+TEST_USERNAME = "testuser"
+TEST_PASSWORD = "password123"
+
+
+class AuthenticatedUser(HttpUser):
+    """
+    Base class for authenticated users
+    Handles JWT token authentication like E2E tests
+    """
+    abstract = True
+
+    def on_start(self):
+        """Authenticate and get JWT token before starting tasks"""
+        auth_payload = {
+            "username": TEST_USERNAME,
+            "password": TEST_PASSWORD
+        }
+
+        with self.client.post("/app/api/authenticate",
+                             json=auth_payload,
+                             catch_response=True,
+                             name="Authenticate") as response:
+            if response.status_code == 200:
+                try:
+                    self.auth_token = response.json().get("jwtToken")
+                    if self.auth_token:
+                        response.success()
+                    else:
+                        response.failure("No JWT token in response")
+                        self.auth_token = None
+                except Exception as e:
+                    response.failure(f"Failed to parse auth response: {e}")
+                    self.auth_token = None
+            else:
+                response.failure(f"Authentication failed with status {response.status_code}")
+                self.auth_token = None
+
+    def get_auth_headers(self):
+        """Get authorization headers for authenticated requests"""
+        if hasattr(self, 'auth_token') and self.auth_token:
+            return {"Authorization": f"Bearer {self.auth_token}"}
+        return {}
+
+
+class ProductServiceLoadTest(AuthenticatedUser):
     """
     Load test for Product Service
 
@@ -52,7 +97,10 @@ class ProductServiceLoadTest(HttpUser):
     @task(5)  # Weight 5 - most common action
     def browse_all_products(self):
         """View all products in the catalog"""
-        with self.client.get("/app/api/products", catch_response=True, name="Browse Products") as response:
+        with self.client.get("/app/api/products",
+                            headers=self.get_auth_headers(),
+                            catch_response=True,
+                            name="Browse Products") as response:
             if response.status_code == 200:
                 response.success()
             else:
@@ -63,6 +111,7 @@ class ProductServiceLoadTest(HttpUser):
         """View a specific product's details"""
         product_id = random.randint(1, 100)
         with self.client.get(f"/app/api/products/{product_id}",
+                            headers=self.get_auth_headers(),
                             catch_response=True,
                             name="View Product Details") as response:
             if response.status_code in [200, 404]:  # 404 is acceptable if product doesn't exist
@@ -74,6 +123,7 @@ class ProductServiceLoadTest(HttpUser):
     def browse_categories(self):
         """View all product categories"""
         with self.client.get("/app/api/categories",
+                            headers=self.get_auth_headers(),
                             catch_response=True,
                             name="Browse Categories") as response:
             if response.status_code == 200:
@@ -85,6 +135,7 @@ class ProductServiceLoadTest(HttpUser):
     def view_favourites(self):
         """View user favourites"""
         with self.client.get("/app/api/favourites",
+                            headers=self.get_auth_headers(),
                             catch_response=True,
                             name="View Favourites") as response:
             if response.status_code in [200, 404]:
@@ -93,7 +144,7 @@ class ProductServiceLoadTest(HttpUser):
                 response.failure(f"Got status code {response.status_code}")
 
 
-class OrderServiceStressTest(HttpUser):
+class OrderServiceStressTest(AuthenticatedUser):
     """
     Stress test for Order Service
 
@@ -117,11 +168,13 @@ class OrderServiceStressTest(HttpUser):
         """Create a new order"""
         # First create a cart
         cart_data = {"userId": random.randint(1, 100)}
-        cart_response = self.client.post("/app/api/carts", json=cart_data)
-        
+        cart_response = self.client.post("/app/api/carts",
+                                         json=cart_data,
+                                         headers=self.get_auth_headers())
+
         if cart_response.status_code in [200, 201]:
             cart_id = cart_response.json().get('cartId', random.randint(1, 1000))
-            
+
             order_data = {
                 "orderDesc": f"Stress Test Order {random.randint(1000, 9999)}",
                 "orderFee": round(random.uniform(10.0, 500.0), 2),
@@ -130,6 +183,7 @@ class OrderServiceStressTest(HttpUser):
 
             with self.client.post("/app/api/orders",
                                  json=order_data,
+                                 headers=self.get_auth_headers(),
                                  catch_response=True,
                                  name="Create Order") as response:
                 if response.status_code in [200, 201]:
@@ -141,6 +195,7 @@ class OrderServiceStressTest(HttpUser):
     def browse_orders(self):
         """View all orders"""
         with self.client.get("/app/api/orders",
+                            headers=self.get_auth_headers(),
                             catch_response=True,
                             name="Browse Orders") as response:
             if response.status_code == 200:
@@ -153,6 +208,7 @@ class OrderServiceStressTest(HttpUser):
         """View specific order details"""
         order_id = random.randint(1, 1000)
         with self.client.get(f"/app/api/orders/{order_id}",
+                            headers=self.get_auth_headers(),
                             catch_response=True,
                             name="View Order Details") as response:
             if response.status_code in [200, 404]:
@@ -161,14 +217,14 @@ class OrderServiceStressTest(HttpUser):
                 response.failure(f"Got status code {response.status_code}")
 
 
-class UserAuthenticationLoadTest(HttpUser):
+class UserAuthenticationLoadTest(AuthenticatedUser):
     """
     Load test for User Authentication
 
     Tests user registration and login under load:
-    - User registration
-    - User login
-    - Profile retrieval
+    - User registration (no auth needed)
+    - User login (no auth needed)
+    - Profile retrieval (auth needed)
 
     Expected Response Times:
     - POST /register: < 1500ms (p95)
@@ -180,7 +236,7 @@ class UserAuthenticationLoadTest(HttpUser):
 
     @task(3)
     def register_user(self):
-        """Register a new user"""
+        """Register a new user (no auth required)"""
         user_id = random.randint(10000, 99999)
         user_data = {
             "firstName": f"LoadTest{user_id}",
@@ -202,10 +258,10 @@ class UserAuthenticationLoadTest(HttpUser):
 
     @task(5)
     def login_user(self):
-        """Login with credentials"""
+        """Login with credentials (no auth required)"""
         login_data = {
-            "username": f"loadtest{random.randint(10000, 99999)}",
-            "password": "TestPass123!"
+            "username": TEST_USERNAME,  # Use existing test user
+            "password": TEST_PASSWORD
         }
 
         with self.client.post("/app/api/authenticate",
@@ -219,9 +275,10 @@ class UserAuthenticationLoadTest(HttpUser):
 
     @task(2)
     def get_user_profile(self):
-        """Retrieve user profile"""
+        """Retrieve user profile (requires auth)"""
         user_id = random.randint(1, 100)
         with self.client.get(f"/app/api/users/{user_id}",
+                            headers=self.get_auth_headers(),
                             catch_response=True,
                             name="Get User Profile") as response:
             if response.status_code in [200, 404]:
@@ -250,10 +307,18 @@ class CompletePurchaseFlow(SequentialTaskSet):
         self.order_id = None
         self.payment_id = None
 
+    def get_auth_headers(self):
+        """Get auth headers from parent user"""
+        if hasattr(self.user, 'auth_token') and self.user.auth_token:
+            return {"Authorization": f"Bearer {self.user.auth_token}"}
+        return {}
+
     @task
     def browse_products(self):
         """Step 1: Browse products"""
-        response = self.client.get("/app/api/products", name="1. Browse Products")
+        response = self.client.get("/app/api/products",
+                                  headers=self.get_auth_headers(),
+                                  name="1. Browse Products")
         if response.status_code == 200:
             self.product_id = random.randint(1, 50)
 
@@ -262,6 +327,7 @@ class CompletePurchaseFlow(SequentialTaskSet):
         """Step 2: View product details"""
         if self.product_id:
             self.client.get(f"/app/api/products/{self.product_id}",
+                          headers=self.get_auth_headers(),
                           name="2. View Product Details")
 
     @task
@@ -269,6 +335,7 @@ class CompletePurchaseFlow(SequentialTaskSet):
         """Step 3: Create shopping cart"""
         response = self.client.post("/app/api/carts",
                                    json={"userId": random.randint(1, 100)},
+                                   headers=self.get_auth_headers(),
                                    name="3. Create Cart")
         if response.status_code in [200, 201]:
             try:
@@ -287,6 +354,7 @@ class CompletePurchaseFlow(SequentialTaskSet):
 
         response = self.client.post("/app/api/orders",
                                    json=order_data,
+                                   headers=self.get_auth_headers(),
                                    name="4. Create Order")
         if response.status_code in [200, 201]:
             try:
@@ -305,6 +373,7 @@ class CompletePurchaseFlow(SequentialTaskSet):
 
             response = self.client.post("/app/api/payments",
                                        json=payment_data,
+                                       headers=self.get_auth_headers(),
                                        name="5. Process Payment")
             if response.status_code in [200, 201]:
                 try:
@@ -324,6 +393,7 @@ class CompletePurchaseFlow(SequentialTaskSet):
 
             self.client.post("/app/api/shippings",
                            json=shipping_data,
+                           headers=self.get_auth_headers(),
                            name="6. Create Shipping Item")
 
     @task
@@ -332,7 +402,7 @@ class CompletePurchaseFlow(SequentialTaskSet):
         self.interrupt()
 
 
-class ECommercePurchaseUser(HttpUser):
+class ECommercePurchaseUser(AuthenticatedUser):
     """
     User that performs complete purchase flows
     """
@@ -340,12 +410,12 @@ class ECommercePurchaseUser(HttpUser):
     tasks = [CompletePurchaseFlow]
 
 
-class MixedWorkloadUser(HttpUser):
+class MixedWorkloadUser(AuthenticatedUser):
     """
     Simulates realistic mixed workload with different user behaviors:
     - 60% browsing products
     - 20% creating orders
-    - 15% authentication
+    - 15% user operations
     - 5% complete purchase flow
     """
 
@@ -354,43 +424,57 @@ class MixedWorkloadUser(HttpUser):
     @task(12)  # 60%
     def browse_products(self):
         product_id = random.randint(1, 100)
-        self.client.get(f"/app/api/products", name="Browse Products")
+        self.client.get(f"/app/api/products",
+                       headers=self.get_auth_headers(),
+                       name="Browse Products")
         if random.random() > 0.5:
-            self.client.get(f"/app/api/products/{product_id}", name="View Product")
+            self.client.get(f"/app/api/products/{product_id}",
+                           headers=self.get_auth_headers(),
+                           name="View Product")
 
     @task(4)  # 20%
     def create_order(self):
         # Create cart first
-        cart_response = self.client.post("/app/api/carts", json={"userId": random.randint(1, 100)})
+        cart_response = self.client.post("/app/api/carts",
+                                         json={"userId": random.randint(1, 100)},
+                                         headers=self.get_auth_headers())
         cart_id = cart_response.json().get('cartId', random.randint(1, 1000)) if cart_response.status_code in [200, 201] else random.randint(1, 1000)
-        
+
         order_data = {
             "orderDesc": f"Mixed Workload Order {random.randint(1, 9999)}",
             "orderFee": round(random.uniform(20.0, 200.0), 2),
             "cart": {"cartId": cart_id}
         }
-        self.client.post("/app/api/orders", json=order_data, name="Create Order")
+        self.client.post("/app/api/orders",
+                        json=order_data,
+                        headers=self.get_auth_headers(),
+                        name="Create Order")
 
     @task(3)  # 15%
-    def user_auth(self):
+    def user_operations(self):
         user_id = random.randint(1, 100)
-        self.client.get(f"/app/api/users/{user_id}", name="Get User")
+        self.client.get(f"/app/api/users/{user_id}",
+                       headers=self.get_auth_headers(),
+                       name="Get User")
 
     @task(1)  # 5%
     def complete_purchase(self):
         # Simplified purchase flow
         product_id = random.randint(1, 50)
-        self.client.get(f"/app/api/products/{product_id}")
+        self.client.get(f"/app/api/products/{product_id}",
+                       headers=self.get_auth_headers())
 
         # Create cart
-        cart_response = self.client.post("/app/api/carts", json={"userId": random.randint(1, 100)})
+        cart_response = self.client.post("/app/api/carts",
+                                         json={"userId": random.randint(1, 100)},
+                                         headers=self.get_auth_headers())
         cart_id = cart_response.json().get('cartId', random.randint(1, 1000)) if cart_response.status_code in [200, 201] else random.randint(1, 1000)
 
         order_response = self.client.post("/app/api/orders", json={
             "orderDesc": "Quick Purchase",
             "orderFee": 99.99,
             "cart": {"cartId": cart_id}
-        })
+        }, headers=self.get_auth_headers())
 
         if order_response.status_code in [200, 201]:
             try:
@@ -398,7 +482,7 @@ class MixedWorkloadUser(HttpUser):
                 self.client.post("/app/api/payments", json={
                     "order": {"orderId": order_id},
                     "isPayed": True
-                })
+                }, headers=self.get_auth_headers())
             except:
                 pass
 
