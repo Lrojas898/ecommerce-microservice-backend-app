@@ -174,13 +174,12 @@ pipeline {
 
                             echo " Deploying ${service} (${imageTag})..."
 
-                            sh """
-                                set -e
-                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
-                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
-                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-                            """
+                            // Execute each kubectl command in its own sh block
+                            sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}"
+                            sh "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}"
+                            sh "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}"
 
+                            // Wait using Groovy (Jenkins-safe)
                             def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
                             def checkInterval = 2
                             def maxAttempts = timeoutSeconds / checkInterval
@@ -246,13 +245,12 @@ pipeline {
 
                             echo "Deploying ${service} (${imageTag})..."
 
-                            sh """
-                                set -e
-                                kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
-                                kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
-                                kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-                            """
+                            // Execute each kubectl command in its own sh block
+                            sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}"
+                            sh "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}"
+                            sh "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}"
 
+                            // Wait using Groovy (Jenkins-safe)
                             def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
                             def checkInterval = 2
                             def maxAttempts = timeoutSeconds / checkInterval
@@ -305,13 +303,12 @@ pipeline {
 
                         echo " Deploying api-gateway (${imageTag})..."
 
-                        sh """
-                            set -e
-                            kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
-                            kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
-                            kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
-                        """
+                        // Execute each kubectl command in its own sh block
+                        sh "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}"
+                        sh "kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}"
+                        sh "kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}"
 
+                        // Wait using Groovy (Jenkins-safe)
                         def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
                         def checkInterval = 2
                         def maxAttempts = timeoutSeconds / checkInterval
