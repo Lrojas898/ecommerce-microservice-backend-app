@@ -18,13 +18,13 @@ pipeline {
 
         // Timeouts
         MAX_RETRY_COUNT = '5'
-        SERVICE_READINESS_TIMEOUT = '300'  // Reduced from 900s for local
-        POD_READY_TIMEOUT = '180'          // Reduced from 300s for local
+        SERVICE_READINESS_TIMEOUT = '600'  // 10 minutes for rollout
+        POD_READY_TIMEOUT = '300'          // 5 minutes for pod ready
     }
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 45, unit: 'MINUTES')
+        timeout(time: 60, unit: 'MINUTES')
         timestamps()
         disableConcurrentBuilds()
     }

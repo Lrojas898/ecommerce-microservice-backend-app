@@ -18,8 +18,8 @@ pipeline {
 
         // Timeouts (increased for production)
         MAX_RETRY_COUNT = '5'
-        SERVICE_READINESS_TIMEOUT = '300'
-        POD_READY_TIMEOUT = '180'
+        SERVICE_READINESS_TIMEOUT = '600'  // 10 minutes for rollout
+        POD_READY_TIMEOUT = '300'          // 5 minutes for pod ready
     }
 
     options {
