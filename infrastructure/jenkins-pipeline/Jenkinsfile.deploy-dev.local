@@ -80,8 +80,8 @@ pipeline {
                 script {
                     echo " Ensuring namespace exists..."
                     sh """
-                        kubectl get namespace ${K8S_NAMESPACE} || kubectl create namespace ${K8S_NAMESPACE}
-                        kubectl get namespace ${K8S_NAMESPACE}
+                        kubectl --insecure-skip-tls-verify get namespace ${K8S_NAMESPACE} || kubectl --insecure-skip-tls-verify create namespace ${K8S_NAMESPACE}
+                        kubectl --insecure-skip-tls-verify get namespace ${K8S_NAMESPACE}
                     """
                 }
             }
