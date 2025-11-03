@@ -2,6 +2,13 @@
 #
 # Start socat proxy for Jenkins to access Minikube API Gateway
 # 
+# ⚠️ NOTE: This script is NO LONGER NEEDED for Jenkins pipelines!
+# The Jenkinsfiles now use kubectl port-forward automatically.
+#
+# This script is kept as an alternative if you need to:
+# - Test connectivity manually outside Jenkins
+# - Use a persistent port-forward
+#
 # This script creates a port-forward from Docker gateway (172.17.0.1:18080)
 # to Minikube API Gateway (192.168.49.2:32118)
 #
@@ -12,6 +19,17 @@ set -e
 echo "========================================="
 echo "  Jenkins to Minikube Proxy Setup"
 echo "========================================="
+echo ""
+echo "⚠️  NOTE: This is now automated in Jenkins!"
+echo "The pipeline uses kubectl port-forward automatically."
+echo ""
+read -p "Continue anyway? (y/n) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Cancelled."
+    exit 0
+fi
+echo ""
 
 # Get Minikube IP
 MINIKUBE_IP=$(minikube ip 2>/dev/null || echo "192.168.49.2")

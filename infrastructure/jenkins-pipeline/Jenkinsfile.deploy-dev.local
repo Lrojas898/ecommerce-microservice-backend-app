@@ -373,41 +373,116 @@ pipeline {
             }
         }
 
+        stage('Wait for Services Ready') {
+            when {
+                expression { !params.SKIP_E2E_TESTS }
+            }
+            steps {
+                script {
+                    echo "⏳ Waiting for all services to be ready..."
+                    
+                    sh """
+                        set -e
+                        
+                        echo "========================================="
+                        echo "Waiting for Pods to be Ready"
+                        echo "========================================="
+                        
+                        # Wait for API Gateway
+                        echo "Waiting for API Gateway..."
+                        kubectl --insecure-skip-tls-verify wait --for=condition=ready pod -l app=api-gateway -n ${K8S_NAMESPACE} --timeout=300s || true
+                        
+                        # Wait for critical microservices
+                        echo "Waiting for Product Service..."
+                        kubectl --insecure-skip-tls-verify wait --for=condition=ready pod -l app=product-service -n ${K8S_NAMESPACE} --timeout=300s || true
+                        
+                        echo "Waiting for User Service..."
+                        kubectl --insecure-skip-tls-verify wait --for=condition=ready pod -l app=user-service -n ${K8S_NAMESPACE} --timeout=300s || true
+                        
+                        echo "Waiting for Order Service..."
+                        kubectl --insecure-skip-tls-verify wait --for=condition=ready pod -l app=order-service -n ${K8S_NAMESPACE} --timeout=300s || true
+                        
+                        echo ""
+                        echo "Final pod status:"
+                        kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE}
+                        
+                        echo ""
+                        echo "✓ Services are ready for testing"
+                        echo "========================================="
+                    """
+                }
+            }
+        }
+
         stage('Run E2E Tests') {
             when {
                 expression { !params.SKIP_E2E_TESTS }
             }
             steps {
                 script {
-                    echo " Running E2E tests..."
+                    echo "🧪 Running E2E tests..."
                     
                     try {
                         sh """
                             set -e
                             
                             echo "========================================="
-                            echo "Configuring API Gateway URL for E2E Tests"
+                            echo "Setting up Port-Forward to API Gateway"
                             echo "========================================="
                             
-                            # Use Docker Gateway IP with socat port-forward
-                            # socat must be running: sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 TCP:192.168.49.2:32118 &
-                            GATEWAY_URL="http://172.17.0.1:18080"
-                            echo "API Gateway URL: \$GATEWAY_URL"
-                            echo "(via socat port-forward from Docker gateway to Minikube)"
+                            # Start kubectl port-forward in background
+                            echo "Starting port-forward on port 18080..."
+                            kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 18080:80 > /tmp/port-forward.log 2>&1 &
+                            PORT_FORWARD_PID=\$!
+                            echo "Port-forward started with PID: \$PORT_FORWARD_PID"
                             
-                            # Quick connectivity test
+                            # Save PID to file for cleanup
+                            echo \$PORT_FORWARD_PID > /tmp/port-forward.pid
+                            
+                            # Wait for port-forward to be ready
+                            echo "Waiting for port-forward to be ready..."
+                            sleep 5
+                            
+                            # Verify port-forward is still running
+                            if ! ps -p \$PORT_FORWARD_PID > /dev/null; then
+                                echo "❌ Port-forward failed to start"
+                                cat /tmp/port-forward.log
+                                exit 1
+                            fi
+                            
+                            GATEWAY_URL="http://localhost:18080"
+                            echo "✓ Port-forward ready"
+                            echo "API Gateway URL: \$GATEWAY_URL"
+                            
+                            # Test connectivity with retries
                             echo ""
                             echo "Testing connectivity..."
-                            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \$GATEWAY_URL/app/api/products --max-time 5 || echo "000")
-                            
-                            if [ "\$HTTP_CODE" = "000" ]; then
-                                echo "❌ ERROR: Cannot reach API Gateway at \$GATEWAY_URL"
-                                echo "Make sure socat port-forward is running:"
-                                echo "  sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 TCP:192.168.49.2:32118 &"
-                                exit 1
-                            else
-                                echo "✓ API Gateway is reachable (HTTP \$HTTP_CODE)"
-                            fi
+                            for i in 1 2 3 4 5; do
+                                HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \$GATEWAY_URL/app/api/products --max-time 5 || echo "000")
+                                
+                                if [ "\$HTTP_CODE" != "000" ]; then
+                                    echo "✓ API Gateway is reachable (HTTP \$HTTP_CODE)"
+                                    break
+                                fi
+                                
+                                if [ \$i -lt 5 ]; then
+                                    echo "Attempt \$i/5: Got \$HTTP_CODE, retrying in 5 seconds..."
+                                    sleep 5
+                                else
+                                    echo "❌ ERROR: Cannot reach API Gateway at \$GATEWAY_URL after 5 attempts"
+                                    echo "HTTP Code: \$HTTP_CODE"
+                                    echo ""
+                                    echo "Port-forward logs:"
+                                    cat /tmp/port-forward.log
+                                    echo ""
+                                    echo "API Gateway pods:"
+                                    kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=api-gateway
+                                    
+                                    # Cleanup
+                                    kill \$PORT_FORWARD_PID 2>/dev/null || true
+                                    exit 1
+                                fi
+                            done
                             
                             echo ""
                             echo "========================================="
@@ -425,6 +500,12 @@ pipeline {
                             echo "========================================="
                             echo "✓ E2E Tests PASSED"
                             echo "========================================="
+                            
+                            # Cleanup port-forward
+                            echo ""
+                            echo "Stopping port-forward (PID: \$PORT_FORWARD_PID)..."
+                            kill \$PORT_FORWARD_PID 2>/dev/null || true
+                            rm -f /tmp/port-forward.pid /tmp/port-forward.log
                         """
                     } catch (Exception e) {
                         echo "  E2E tests failed: ${e.message}"
@@ -446,6 +527,17 @@ mvn clean verify -Dtest.base.url="http://\$MINIKUBE_IP:32118"
             }
             post {
                 always {
+                    script {
+                        // Cleanup port-forward if it's still running
+                        sh '''
+                            if [ -f /tmp/port-forward.pid ]; then
+                                PID=$(cat /tmp/port-forward.pid)
+                                echo "Cleaning up port-forward (PID: $PID)..."
+                                kill $PID 2>/dev/null || true
+                                rm -f /tmp/port-forward.pid /tmp/port-forward.log
+                            fi
+                        '''
+                    }
                     junit allowEmptyResults: true, testResults: 'tests/target/failsafe-reports/*.xml'
                 }
             }
