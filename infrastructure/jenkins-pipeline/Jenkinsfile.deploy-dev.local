@@ -213,21 +213,6 @@ pipeline {
 
                                 echo "✓ ${service} deployed successfully"
                             """
-
-                            // Service-specific verification for Eureka
-                            if (service == 'service-discovery') {
-                                echo "Verifying Eureka is ready..."
-                                sh """
-                                    sleep 30
-                                    retries=0
-                                    until kubectl --insecure-skip-tls-verify exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps 2>/dev/null || [ \$retries -ge 3 ]; do
-                                        echo "Waiting for Eureka... (attempt \$((retries + 1))/3)"
-                                        sleep 20
-                                        retries=\$((retries + 1))
-                                    done
-                                    echo "✓ Eureka is ready"
-                                """
-                            }
                         } else {
                             echo "  Skipping ${service} (no changes)"
                         }
@@ -281,24 +266,6 @@ pipeline {
                                 # Wait for pod ready
                                 kubectl --insecure-skip-tls-verify wait --for=condition=ready pod -l app=${service} -n ${K8S_NAMESPACE} --timeout=${POD_READY_TIMEOUT}s
 
-                                # Verify Eureka registration (if not proxy-client)
-                                if [ "${service}" != "proxy-client" ]; then
-                                    echo "Verifying ${service} registration with Eureka..."
-                                    sleep 15
-                                    retries=0
-                                    SERVICE_NAME_UPPER=\$(echo "${service}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
-                                    until kubectl --insecure-skip-tls-verify exec -n ${K8S_NAMESPACE} deploy/service-discovery -- curl -sf http://localhost:8761/eureka/apps/\${SERVICE_NAME_UPPER} 2>/dev/null | grep -q "status" || [ \$retries -ge 3 ]; do
-                                        echo "Waiting for Eureka registration... (attempt \$((retries + 1))/3)"
-                                        sleep 10
-                                        retries=\$((retries + 1))
-                                    done
-                                    if [ \$retries -lt 3 ]; then
-                                        echo "✓ ${service} registered with Eureka"
-                                    else
-                                        echo "  ${service} may not be registered with Eureka (continuing anyway)"
-                                    fi
-                                fi
-
                                 echo "✓ ${service} deployed successfully"
                             """
                         } else {
@@ -329,16 +296,6 @@ pipeline {
                             kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify scale deployment/api-gateway --replicas=1 -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
-
-                            # Verify health
-                            echo "Verifying API Gateway health..."
-                            sleep 20
-                            retries=0
-                            until kubectl --insecure-skip-tls-verify exec -n ${K8S_NAMESPACE} deploy/api-gateway -- curl -sf http://localhost:80/actuator/health 2>/dev/null || [ \$retries -ge 3 ]; do
-                                echo "Waiting for API Gateway... (attempt \$((retries + 1))/3)"
-                                sleep 15
-                                retries=\$((retries + 1))
-                            done
 
                             echo "✓ API Gateway deployed successfully"
                         """
