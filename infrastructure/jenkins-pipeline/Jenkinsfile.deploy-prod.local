@@ -230,23 +230,39 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
 
                             echo " Deploying ${service} (${imageTag})..."
 
-                            sh label: "Deploy ${service}", script: """
-                                set -e
+                            // Execute each kubectl command in its own sh block
+                            sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
 
-                                # Apply base configuration
-                                kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                            // Wait using Groovy (Jenkins-safe) instead of kubectl rollout status
+                            def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
+                            def checkInterval = 2
+                            def maxAttempts = timeoutSeconds / checkInterval
+                            def available = false
 
-                                # Update image
-                                kubectl set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                            for (int i = 0; i < maxAttempts; i++) {
+                                try {
+                                    def output = sh(
+                                        script: "kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
+                                        returnStdout: true
+                                    ).trim()
 
-                                # Force rollout restart to ensure new image is pulled
-                                kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                    if (output == "1") {
+                                        available = true
+                                        break
+                                    }
+                                } catch (Exception e) {
+                                    // Ignore errors during checks
+                                }
+                                sleep(checkInterval)
+                            }
 
-                                # Wait for rollout
-                                kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                            if (!available) {
+                                error("Timeout waiting for ${service} to become available")
+                            }
 
-                                echo "✓ ${service} deployed successfully"
-                            """
+                            echo "✓ ${service} deployed successfully"
                         } else {
                             echo "  Skipping ${service} (no changes)"
                         }
@@ -282,23 +298,39 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
 
                             echo ">>> Deploying ${service} (${imageTag})..."
 
-                            sh label: "Deploy ${service}", script: """
-                                set -e
+                            // Execute each kubectl command in its own sh block
+                            sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                            sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
 
-                                # Apply configuration
-                                kubectl apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
+                            // Wait using Groovy (Jenkins-safe) instead of kubectl rollout status
+                            def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
+                            def checkInterval = 2
+                            def maxAttempts = timeoutSeconds / checkInterval
+                            def available = false
 
-                                # Update image
-                                kubectl set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
+                            for (int i = 0; i < maxAttempts; i++) {
+                                try {
+                                    def output = sh(
+                                        script: "kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
+                                        returnStdout: true
+                                    ).trim()
 
-                                # Force rollout restart to ensure new image is pulled
-                                kubectl rollout restart deployment/${service} -n ${K8S_NAMESPACE}
+                                    if (output == "1") {
+                                        available = true
+                                        break
+                                    }
+                                } catch (Exception e) {
+                                    // Ignore errors during checks
+                                }
+                                sleep(checkInterval)
+                            }
 
-                                # Wait for rollout
-                                kubectl rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                            if (!available) {
+                                error("Timeout waiting for ${service} to become available")
+                            }
 
-                                echo "✓ ${service} deployed successfully"
-                            """
+                            echo "✓ ${service} deployed successfully"
                         } else {
                             echo "  Skipping ${service} (no changes)"
                         }
@@ -320,16 +352,39 @@ Git Commit: ${env.GIT_COMMIT_SHORT}
 
                         echo " Deploying api-gateway (${imageTag})..."
 
-                        sh label: "Deploy API Gateway", script: """
-                            set -e
+                        // Execute each kubectl command in its own sh block
+                        sh script: "kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                        sh script: "kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
+                        sh script: "kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE} 2>&1", returnStatus: false
 
-                            kubectl apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
-                            kubectl set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
-                            kubectl rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
-                            kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                        // Wait using Groovy (Jenkins-safe) instead of kubectl rollout status
+                        def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
+                        def checkInterval = 2
+                        def maxAttempts = timeoutSeconds / checkInterval
+                        def available = false
 
-                            echo "✓ API Gateway deployed successfully"
-                        """
+                        for (int i = 0; i < maxAttempts; i++) {
+                            try {
+                                def output = sh(
+                                    script: "kubectl --insecure-skip-tls-verify get deployment/api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
+                                    returnStdout: true
+                                ).trim()
+
+                                if (output == "1") {
+                                    available = true
+                                    break
+                                }
+                            } catch (Exception e) {
+                                // Ignore errors during checks
+                            }
+                            sleep(checkInterval)
+                        }
+
+                        if (!available) {
+                            error("Timeout waiting for api-gateway to become available")
+                        }
+
+                        echo "✓ API Gateway deployed successfully"
                     } else {
                         echo "  Skipping api-gateway (no changes)"
                     }
