@@ -235,6 +235,51 @@ Duration: ${params.RUN_TIME}
             }
         }
 
+        stage('SonarQube Analysis - Performance Tests') {
+            steps {
+                script {
+                    echo "📊 Analyzing performance test code with SonarQube..."
+
+                    try {
+                        sh """
+                            cd tests/performance
+
+                            # Download SonarQube Scanner if not present
+                            if [ ! -d "sonar-scanner" ]; then
+                                echo "Downloading SonarQube Scanner..."
+                                wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+                                unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
+                                mv sonar-scanner-5.0.1.3006-linux sonar-scanner
+                                rm sonar-scanner-cli-5.0.1.3006-linux.zip
+                            fi
+
+                            # Run SonarQube analysis
+                            echo "Running SonarQube analysis..."
+                            ./sonar-scanner/bin/sonar-scanner \\
+                                -Dsonar.host.url=http://172.17.0.1:9000 \\
+                                -Dsonar.login=admin \\
+                                -Dsonar.password=DevOpsSonnar123! \\
+                                -Dsonar.projectKey=ecommerce-performance-tests \\
+                                -Dsonar.projectName="E-Commerce Performance Tests" \\
+                                -Dsonar.projectVersion=1.0 \\
+                                -Dsonar.sources=. \\
+                                -Dsonar.inclusions=**/*.py \\
+                                -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/sonar-scanner/** \\
+                                -Dsonar.language=py \\
+                                -Dsonar.python.version=3.13 \\
+                                -Dsonar.sourceEncoding=UTF-8
+
+                            echo "✓ SonarQube analysis completed"
+                            echo "View results at: http://172.17.0.1:9000/dashboard?id=ecommerce-performance-tests"
+                        """
+                    } catch (Exception e) {
+                        echo "⚠️ SonarQube analysis failed: ${e.message}"
+                        echo "This is non-blocking, continuing pipeline..."
+                    }
+                }
+            }
+        }
+
         stage('Summary') {
             steps {
                 script {
@@ -253,12 +298,14 @@ View Results:
 - HTML Report: Check Published HTML Reports
 - CSV Data: Check Build Artifacts
 - Full Logs: See console output above
+- SonarQube: http://172.17.0.1:9000/dashboard?id=ecommerce-performance-tests
 
 Next Steps:
 1. Review report for performance bottlenecks
 2. Check error rates and response times
 3. Compare with previous test runs
-4. Scale services if needed
+4. Review SonarQube for code quality issues
+5. Scale services if needed
 ========================================
 """
                 }
