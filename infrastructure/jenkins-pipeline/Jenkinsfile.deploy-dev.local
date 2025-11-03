@@ -91,9 +91,8 @@ pipeline {
                         }
                     } else {
                         try {
-                            def slurper = new groovy.json.JsonSlurper()
-                            def parsed = slurper.parseText(params.SERVICE_VERSIONS)
-                            // Convert LazyMap to serializable HashMap
+                            // Convert LazyMap to serializable HashMap (don't store JsonSlurper in variable)
+                            def parsed = new groovy.json.JsonSlurper().parseText(params.SERVICE_VERSIONS)
                             serviceVersionMap = new HashMap<>(parsed.collectEntries { k, v -> [k.toString(), v.toString()] })
 
                             serviceVersionMap.each { service, version ->
@@ -165,8 +164,7 @@ pipeline {
                 script {
                     def infraServices = ['service-discovery']
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
-                    def slurper = new groovy.json.JsonSlurper()
-                    def serviceVersionMap = new HashMap<>(slurper.parseText(env.SERVICE_VERSION_MAP))
+                    def serviceVersionMap = new HashMap<>(new groovy.json.JsonSlurper().parseText(env.SERVICE_VERSION_MAP))
 
                     infraServices.each { service ->
                         if (servicesToDeploy.contains(service)) {
@@ -215,8 +213,7 @@ pipeline {
                     ]
 
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
-                    def slurper = new groovy.json.JsonSlurper()
-                    def serviceVersionMap = new HashMap<>(slurper.parseText(env.SERVICE_VERSION_MAP))
+                    def serviceVersionMap = new HashMap<>(new groovy.json.JsonSlurper().parseText(env.SERVICE_VERSION_MAP))
 
                     echo " Deploying microservices in order..."
 
@@ -259,8 +256,7 @@ pipeline {
                     def servicesToDeploy = env.SERVICES_TO_DEPLOY.split(',')
 
                     if (servicesToDeploy.contains('api-gateway')) {
-                        def slurper = new groovy.json.JsonSlurper()
-                        def serviceVersionMap = new HashMap<>(slurper.parseText(env.SERVICE_VERSION_MAP))
+                        def serviceVersionMap = new HashMap<>(new groovy.json.JsonSlurper().parseText(env.SERVICE_VERSION_MAP))
                         def version = serviceVersionMap['api-gateway'] ?: 'latest'
                         def imageTag = "${params.DOCKER_USER}/api-gateway:${version}"
 
