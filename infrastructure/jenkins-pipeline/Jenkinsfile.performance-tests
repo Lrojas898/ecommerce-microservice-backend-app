@@ -93,9 +93,26 @@ Headless: ${params.HEADLESS}
                     echo "📦 Installing Locust and dependencies..."
                     sh """
                         cd tests/performance
+
+                        # Create virtual environment if it doesn't exist
+                        if [ ! -d "venv" ]; then
+                            echo "Creating Python virtual environment..."
+                            python3 -m venv venv
+                        fi
+
+                        # Activate virtual environment and install dependencies
+                        . venv/bin/activate
+
+                        echo "Upgrading pip..."
                         pip install --upgrade pip
+
+                        echo "Installing requirements..."
                         pip install -r requirements.txt
+
+                        echo "Verifying Locust installation..."
                         locust --version
+
+                        deactivate
                     """
                 }
             }
@@ -122,7 +139,10 @@ Duration: ${params.RUN_TIME}
                     try {
                         sh """
                             cd tests/performance
-                            
+
+                            # Activate virtual environment
+                            . venv/bin/activate
+
                             locust -f locustfile.py ${params.TEST_TYPE} \\
                                 --host=${env.API_GATEWAY_URL} \\
                                 --users ${params.USERS} \\
@@ -130,6 +150,8 @@ Duration: ${params.RUN_TIME}
                                 --run-time ${params.RUN_TIME} \\
                                 ${headlessFlag} \\
                                 ${reportFlags}
+
+                            deactivate
                         """
                         
                         echo """
