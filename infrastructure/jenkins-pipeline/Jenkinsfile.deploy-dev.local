@@ -205,8 +205,8 @@ pipeline {
                                 # Force rollout restart to ensure new image is pulled
                                 kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
 
-                                # Wait for rollout
-                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                                # Wait for deployment to be available
+                                kubectl --insecure-skip-tls-verify wait --for=condition=Available deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                                 echo "✓ ${service} deployed successfully"
                             """
@@ -257,8 +257,8 @@ pipeline {
                                 # Force rollout restart to ensure new image is pulled
                                 kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
 
-                                # Wait for rollout
-                                kubectl --insecure-skip-tls-verify rollout status deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                                # Wait for deployment to be available
+                                kubectl --insecure-skip-tls-verify wait --for=condition=Available deployment/${service} -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                                 echo "✓ ${service} deployed successfully"
                             """
@@ -289,7 +289,7 @@ pipeline {
                             kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
-                            kubectl --insecure-skip-tls-verify rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
+                            kubectl --insecure-skip-tls-verify wait --for=condition=Available deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=${SERVICE_READINESS_TIMEOUT}s
 
                             echo "✓ API Gateway deployed successfully"
                         """
