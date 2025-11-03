@@ -174,21 +174,44 @@ pipeline {
 
                             echo " Deploying ${service} (${imageTag})..."
 
-                            sh label: "Deploy ${service}", script: """
+                            sh """
                                 set -e
                                 kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                                 kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
                                 kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-
-                                echo "Waiting for deployment/${service} to become available (timeout: ${SERVICE_READINESS_TIMEOUT}s)..."
-                                timeout ${SERVICE_READINESS_TIMEOUT} bash -c '
-                                    while ! kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath="{.status.availableReplicas}" 2>/dev/null | grep -q "1"; do
-                                        echo "Still waiting... (\$(date +%H:%M:%S))"
-                                        sleep 2
-                                    done
-                                    echo "${service} is available"
-                                '
                             """
+
+                            def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
+                            def checkInterval = 2
+                            def maxAttempts = timeoutSeconds / checkInterval
+                            def available = false
+
+                            echo "Waiting for deployment/${service} to become available (timeout: ${timeoutSeconds}s)..."
+
+                            for (int i = 0; i < maxAttempts; i++) {
+                                try {
+                                    def output = sh(
+                                        script: "kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
+                                        returnStdout: true
+                                    ).trim()
+
+                                    if (output == "1") {
+                                        available = true
+                                        echo "${service} is available"
+                                        break
+                                    }
+                                } catch (Exception e) {
+                                    // Ignore errors during checks
+                                }
+
+                                echo "Still waiting... (${new Date().format('HH:mm:ss')})"
+                                sleep(checkInterval)
+                            }
+
+                            if (!available) {
+                                error("Timeout: deployment/${service} did not become available within ${timeoutSeconds} seconds")
+                            }
+
                         } else {
                             echo "  Skipping ${service} (no changes)"
                         }
@@ -223,21 +246,44 @@ pipeline {
 
                             echo "Deploying ${service} (${imageTag})..."
 
-                            sh label: "Deploy ${service}", script: """
+                            sh """
                                 set -e
                                 kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/${service}.yaml -n ${K8S_NAMESPACE}
                                 kubectl --insecure-skip-tls-verify set image deployment/${service} ${service}=${imageTag} -n ${K8S_NAMESPACE}
                                 kubectl --insecure-skip-tls-verify rollout restart deployment/${service} -n ${K8S_NAMESPACE}
-
-                                echo "Waiting for deployment/${service} to become available (timeout: ${SERVICE_READINESS_TIMEOUT}s)..."
-                                timeout ${SERVICE_READINESS_TIMEOUT} bash -c '
-                                    while ! kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath="{.status.availableReplicas}" 2>/dev/null | grep -q "1"; do
-                                        echo "Still waiting... (\$(date +%H:%M:%S))"
-                                        sleep 2
-                                    done
-                                    echo "${service} is available"
-                                '
                             """
+
+                            def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
+                            def checkInterval = 2
+                            def maxAttempts = timeoutSeconds / checkInterval
+                            def available = false
+
+                            echo "Waiting for deployment/${service} to become available (timeout: ${timeoutSeconds}s)..."
+
+                            for (int i = 0; i < maxAttempts; i++) {
+                                try {
+                                    def output = sh(
+                                        script: "kubectl --insecure-skip-tls-verify get deployment/${service} -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
+                                        returnStdout: true
+                                    ).trim()
+
+                                    if (output == "1") {
+                                        available = true
+                                        echo "${service} is available"
+                                        break
+                                    }
+                                } catch (Exception e) {
+                                    // Ignore errors during checks
+                                }
+
+                                echo "Still waiting... (${new Date().format('HH:mm:ss')})"
+                                sleep(checkInterval)
+                            }
+
+                            if (!available) {
+                                error("Timeout: deployment/${service} did not become available within ${timeoutSeconds} seconds")
+                            }
+
                         } else {
                             echo "  Skipping ${service} (no changes)"
                         }
@@ -259,21 +305,44 @@ pipeline {
 
                         echo " Deploying api-gateway (${imageTag})..."
 
-                        sh label: "Deploy API Gateway", script: """
+                        sh """
                             set -e
                             kubectl --insecure-skip-tls-verify apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify set image deployment/api-gateway api-gateway=${imageTag} -n ${K8S_NAMESPACE}
                             kubectl --insecure-skip-tls-verify rollout restart deployment/api-gateway -n ${K8S_NAMESPACE}
-
-                            echo "Waiting for deployment/api-gateway to become available (timeout: ${SERVICE_READINESS_TIMEOUT}s)..."
-                            timeout ${SERVICE_READINESS_TIMEOUT} bash -c '
-                                while ! kubectl --insecure-skip-tls-verify get deployment/api-gateway -n ${K8S_NAMESPACE} -o jsonpath="{.status.availableReplicas}" 2>/dev/null | grep -q "1"; do
-                                    echo "Still waiting... (\$(date +%H:%M:%S))"
-                                    sleep 2
-                                done
-                                echo "api-gateway is available"
-                            '
                         """
+
+                        def timeoutSeconds = env.SERVICE_READINESS_TIMEOUT.toInteger()
+                        def checkInterval = 2
+                        def maxAttempts = timeoutSeconds / checkInterval
+                        def available = false
+
+                        echo "Waiting for deployment/api-gateway to become available (timeout: ${timeoutSeconds}s)..."
+
+                        for (int i = 0; i < maxAttempts; i++) {
+                            try {
+                                def output = sh(
+                                    script: "kubectl --insecure-skip-tls-verify get deployment/api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.status.availableReplicas}' 2>/dev/null",
+                                    returnStdout: true
+                                ).trim()
+
+                                if (output == "1") {
+                                    available = true
+                                    echo "api-gateway is available"
+                                    break
+                                }
+                            } catch (Exception e) {
+                                // Ignore errors during checks
+                            }
+
+                            echo "Still waiting... (${new Date().format('HH:mm:ss')})"
+                            sleep(checkInterval)
+                        }
+
+                        if (!available) {
+                            error("Timeout: deployment/api-gateway did not become available within ${timeoutSeconds} seconds")
+                        }
+
                     } else {
                         echo "  Skipping api-gateway (no changes)"
                     }
