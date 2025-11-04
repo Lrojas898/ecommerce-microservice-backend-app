@@ -899,253 +899,277 @@ Los reportes de Locust generan tres archivos principales:
 
 #### 5.4.2 Lectura de Request Statistics
 
-**Ejemplo de reporte real (MixedWorkloadUser - 10 usuarios, 2 minutos)**:
+**Resultados de test ejecutado (2025-11-04 04:38:25 - 04:40:35)**:
 
 ```
 Method  Name              # Requests  # Fails  Avg(ms)  Min  Max   RPS   Failures/s
 POST    /app/api/carts    116        0        106      15   3281  0.9   0.0
 POST    /app/api/orders   22         0        64       16   692   0.2   0.0
-GET     Browse Products   214        0        97       12   3973  1.6   0.0
+POST    /app/api/payments 22         0        105      15   1516  0.2   0.0
 POST    Authenticate      10         0        763      507  1117  0.1   0.0
-GET     View Product      109        103      30       12   210   0.8   0.8
+GET     Browse Products   214        0        97       12   3973  1.6   0.0
+POST    Create Order      94         0        50       15   696   0.7   0.0
 GET     Get User          60         57       86       14   1773  0.5   0.4
+GET     View Product      109        103      30       12   210   0.8   0.8
 Aggregated               669        179      90       12   3973  5.1   1.4
 ```
 
 **Interpretación por Columna**:
 
-| Columna | Significado | Cómo Interpretar | Ejemplo |
+| Columna | Significado | Cómo Interpretar | Ejemplo del Test Ejecutado |
 |---------|-------------|------------------|---------|
 | **Method** | Verbo HTTP | GET/POST/PUT/DELETE | POST indica operación de escritura |
 | **Name** | Nombre del endpoint | Identificador del request | "Browse Products" es más descriptivo que "/app/api/products" |
-| **# Requests** | Total de requests | Volumen de tráfico | 214 requests a Browse Products = endpoint más usado |
-| **# Fails** | Requests fallidos | Errores absolutos | 103 fallos en View Product = 94% error rate ⚠️ |
-| **Avg (ms)** | Tiempo promedio | Performance general | 106ms para crear cart = excelente ✅ |
-| **Min (ms)** | Mejor tiempo | Best case scenario | 12ms mín = cache hit o query simple |
-| **Max (ms)** | Peor tiempo | Outliers/problemas | 3973ms máx = timeout o GC pause ⚠️ |
-| **RPS** | Requests/segundo | Throughput | 5.1 RPS total = bajo (solo 10 usuarios) |
-| **Failures/s** | Errores/segundo | Tasa de error | 1.4 failures/s = 27% error rate ⚠️ |
+| **# Requests** | Total de requests | Volumen de tráfico | 214 requests a Browse Products = endpoint con mayor uso |
+| **# Fails** | Requests fallidos | Errores absolutos | 103 fallos en View Product = 94% error rate |
+| **Avg (ms)** | Tiempo promedio | Performance general | 106ms para crear cart = dentro de parámetros |
+| **Min (ms)** | Mejor tiempo | Mejor caso observado | 12ms mín = cache hit o query simple |
+| **Max (ms)** | Peor tiempo | Outliers/problemas | 3973ms máx = timeout o pausa de GC |
+| **RPS** | Requests/segundo | Throughput | 5.1 RPS total = carga baja del test |
+| **Failures/s** | Errores/segundo | Tasa de error | 1.4 failures/s = 27% error rate |
 
 #### 5.4.3 Análisis de Percentiles
 
-**Ejemplo real de Response Time Statistics**:
+**Resultados de Response Time Statistics**:
 
 ```
-Method  Name             50%ile  90%ile  95%ile  99%ile  100%ile
-POST    Authenticate     720     1100    1100    1100    1100
-GET     Browse Products  18      52      89      3900    4000
-POST    Create Order     19      86      110     700     700
-GET     View Product     18      78      96      130     210
-Aggregated              19      78      110     2700    4000
+Method  Name              50%ile  60%ile  70%ile  80%ile  90%ile  95%ile  99%ile  100%ile
+POST    /app/api/carts    19      21      22      26      48      96      3100    3300
+POST    /app/api/orders   21      22      54      74      83      99      690     690
+POST    /app/api/payments 23      35      58      70      99      100     1500    1500
+POST    Authenticate      720     820     910     1000    1100    1100    1100    1100
+GET     Browse Products   18      20      23      30      52      89      3900    4000
+POST    Create Order      19      20      22      33      86      110     700     700
+GET     Get User          20      21      23      25      58      280     1800    1800
+GET     View Product      18      20      23      31      78      96      130     210
+Aggregated               19      21      23      32      78      110     2700    4000
 ```
 
 **¿Qué significan los percentiles?**
 
-- **p50 (mediana)**: 50% de requests son más rápidos
-  - Ejemplo: p50=18ms en Browse Products → La mitad de requests < 18ms ✅
+- **p50 (mediana)**: 50% de requests son más rápidos que este valor
+  - Browse Products: p50=18ms indica que la mitad de las solicitudes responden en menos de 18ms
+  - Create Order: p50=19ms muestra consistencia similar
 
 - **p90**: 90% de requests son más rápidos (10% más lentos)
-  - Ejemplo: p90=52ms → Solo 10% de usuarios ven > 52ms ✅
+  - Browse Products: p90=52ms indica que solo el 10% de usuarios experimenta tiempos mayores
+  - Create Order: p90=86ms muestra variabilidad aceptable
 
 - **p95**: Experiencia del 95% de usuarios
-  - **Métrica clave para SLAs**
-  - Ejemplo: p95=89ms en Browse Products = excelente ✅
-  - Ejemplo: p95=1100ms en Authenticate = aceptable (JWT generation) ⚠️
+  - Métrica clave para SLAs en producción
+  - Browse Products: p95=89ms se considera dentro de parámetros aceptables
+  - Authenticate: p95=1100ms refleja el costo computacional de generación JWT y bcrypt
 
 - **p99**: Casos extremos (1% de usuarios)
-  - Ejemplo: p99=3900ms → 1% de requests tienen casi 4 segundos ⚠️
-  - Indica outliers o problemas intermitentes
+  - Browse Products: p99=3900ms indica presencia de outliers significativos
+  - Estos valores sugieren posibles pausas de GC o timeouts intermitentes
 
-- **p100 (max)**: Peor caso absoluto
-  - Ejemplo: 4000ms = timeout o error severo
-  - Debe investigarse si supera 5 segundos
+- **p100 (max)**: Peor caso registrado en el test
+  - Browse Products: 4000ms representa el tiempo máximo observado
+  - Valores superiores a 5 segundos requieren investigación inmediata
 
-**Regla de Oro**:
+**Umbrales de referencia**:
 ```
-p95 < 1 segundo  = Experiencia excelente ✅
-p95 < 3 segundos = Aceptable ⚠️
-p95 > 5 segundos = Inaceptable ❌
+p95 < 1 segundo  = Rendimiento óptimo
+p95 < 3 segundos = Rendimiento aceptable
+p95 > 5 segundos = Rendimiento deficiente
 ```
 
 #### 5.4.4 Interpretación de Errores
 
-**Ejemplo real de Failure Statistics**:
+**Resultados de Failure Statistics**:
 
 ```
-Method  Name          Error                                              Occurrences
-GET     View Product  400 Client Error: Bad Request                     103
-GET     Get User      500 Server Error: Internal Server Error           57
+Method  Name                      Error                                          Occurrences
+GET     View Product              400 Client Error: Bad Request                 103
+GET     Get User                  500 Server Error: Internal Server Error       57
+GET     /app/api/products/11      400 Client Error: Bad Request                 2
+GET     /app/api/products/5       400 Client Error: Bad Request                 2
+GET     /app/api/products/35      400 Client Error: Bad Request                 2
+GET     /app/api/products/10      400 Client Error: Bad Request                 1
+GET     /app/api/products/13      400 Client Error: Bad Request                 1
+GET     /app/api/products/14      400 Client Error: Bad Request                 1
+GET     /app/api/products/20      400 Client Error: Bad Request                 1
+GET     /app/api/products/26      400 Client Error: Bad Request                 1
+GET     /app/api/products/27      400 Client Error: Bad Request                 1
+GET     /app/api/products/29      400 Client Error: Bad Request                 1
+GET     /app/api/products/31      400 Client Error: Bad Request                 1
+GET     /app/api/products/39      400 Client Error: Bad Request                 1
+GET     /app/api/products/40      400 Client Error: Bad Request                 1
+GET     /app/api/products/41      400 Client Error: Bad Request                 1
+GET     /app/api/products/46      400 Client Error: Bad Request                 1
+GET     /app/api/products/49      400 Client Error: Bad Request                 1
 ```
 
 **Clasificación de Errores HTTP**:
 
 | Código | Tipo | Severidad | Acción Requerida |
 |--------|------|-----------|------------------|
-| **200-299** | Éxito | ✅ Normal | Ninguna |
-| **400** | Bad Request | ⚠️ Media | **Esperado en load tests** - IDs aleatorios no existen |
-| **401/403** | No autorizado | ⚠️ Media | Verificar autenticación (puede ser esperado) |
-| **404** | No encontrado | ⚠️ Baja | **Aceptable** en tests con IDs aleatorios |
-| **500** | Error del servidor | ❌ Alta | **Requiere investigación** - Bug en el código |
-| **502/503** | Service unavailable | ❌ Crítica | Servicio caído o sobrecargado |
-| **504** | Gateway timeout | ❌ Crítica | Backend no responde |
+| **200-299** | Éxito | Normal | Ninguna |
+| **400** | Bad Request | Media | Esperado en load tests con IDs aleatorios |
+| **401/403** | No autorizado | Media | Verificar autenticación según contexto |
+| **404** | No encontrado | Baja | Aceptable en tests con IDs aleatorios |
+| **500** | Error del servidor | Alta | Requiere investigación - indica error en código |
+| **502/503** | Service unavailable | Crítica | Servicio caído o sobrecargado |
+| **504** | Gateway timeout | Crítica | Backend no responde en tiempo esperado |
 
-**Análisis del Ejemplo**:
+**Análisis de los resultados**:
 
 1. **103 errores 400 en View Product**:
    ```
    GET /app/api/products/{id} → 400 Bad Request
    ```
-   - **Causa**: Locust usa IDs aleatorios (1-100) que no existen en BD
-   - **¿Es un problema?**: NO, es comportamiento esperado del test
-   - **Solución**: Modificar locustfile.py para usar IDs válidos (1-10)
-   - **Impacto**: No crítico - simula tráfico realista
+   - Causa: El test utiliza IDs aleatorios (1-100) que no existen en la base de datos
+   - Evaluación: Comportamiento esperado en el contexto de pruebas de carga
+   - Solución posible: Ajustar locustfile.py para usar rangos de IDs válidos
+   - Impacto: No crítico para el funcionamiento del sistema
 
 2. **57 errores 500 en Get User**:
    ```
    GET /app/api/users/{id} → 500 Internal Server Error
    ```
-   - **Causa**: Endpoint devuelve 500 en lugar de 404 cuando user no existe
-   - **¿Es un problema?**: SÍ ❌ - Debería devolver 404
-   - **Solución**: Corregir exception handling en UserService
-   - **Impacto**: Alto - indica bug en manejo de errores
+   - Causa: El endpoint retorna error 500 en lugar de 404 cuando el usuario no existe
+   - Evaluación: Requiere corrección - manejo inadecuado de excepciones
+   - Solución: Implementar manejo apropiado de excepciones en UserService
+   - Impacto: Alto - indica deficiencia en el manejo de errores del sistema
 
-**Error Rate Aceptable**:
+**Cálculo de Error Rate**:
 ```
 Error Rate = (# Fails / # Requests) × 100
 
-Ejemplo:
-View Product: (103 / 109) × 100 = 94.5% ❌ CRÍTICO
-Get User:     (57 / 60) × 100 = 95.0% ❌ CRÍTICO
-Authenticate: (0 / 10) × 100 = 0% ✅ EXCELENTE
+Ejemplo del test ejecutado:
+View Product: (103 / 109) × 100 = 94.5% (Nivel crítico)
+Get User:     (57 / 60) × 100 = 95.0% (Nivel crítico)
+Authenticate: (0 / 10) × 100 = 0% (Óptimo)
 ```
 
-**Umbrales**:
-- < 1% = Excelente ✅
-- 1-5% = Aceptable ⚠️
-- 5-10% = Requiere atención ⚠️
-- \> 10% = Crítico ❌
+**Umbrales de error rate**:
+- < 1% = Rendimiento óptimo
+- 1-5% = Rendimiento aceptable
+- 5-10% = Requiere atención
+- > 10% = Nivel crítico
 
 #### 5.4.5 Análisis de Endpoints Exitosos
 
-**Caso de Estudio: Endpoints con 0% Error Rate**
+**Endpoints con 0% Error Rate**
 
 ```
 Method  Name              # Requests  # Fails  Avg(ms)  p95(ms)  Success Rate
-POST    Authenticate      10         0        763      1100     100% ✅
-GET     Browse Products   214        0        97       89       100% ✅
-POST    Create Cart       116        0        106      96       100% ✅
-POST    Create Order      94         0        50       110      100% ✅
-POST    Create Payment    22         0        105      100      100% ✅
+POST    Authenticate      10         0        763      1100     100%
+GET     Browse Products   214        0        97       89       100%
+POST    /app/api/carts    116        0        106      96       100%
+POST    Create Order      94         0        50       110      100%
+POST    /app/api/payments 22         0        105      100      100%
 ```
 
-**¿Qué nos dice esto?**
+**Interpretación de resultados**:
 
 1. **Authenticate (763ms avg, 1100ms p95)**:
-   - ✅ **Funcionamiento**: 100% de autenticaciones exitosas
-   - ⚠️ **Performance**: Relativamente lento pero aceptable
-   - **Por qué es lento**:
-     - JWT token generation (firma criptográfica)
-     - Consulta a base de datos para validar credenciales
-     - Bcrypt para verificar password (intencional)
-   - **¿Necesita optimización?**: NO - La seguridad > velocidad
+   - Funcionamiento: 100% de solicitudes procesadas correctamente
+   - Performance: Tiempo de respuesta elevado pero dentro de parámetros esperados
+   - Factores que influyen en el tiempo:
+     - Generación de token JWT con firma criptográfica
+     - Consulta a base de datos para validación de credenciales
+     - Verificación de contraseña mediante bcrypt
+   - Evaluación: No requiere optimización dado el balance seguridad-performance
 
 2. **Browse Products (97ms avg, 89ms p95)**:
-   - ✅ **Excelente performance**: < 100ms en promedio
-   - ✅ **Consistente**: p95 (89ms) muy cerca del avg (97ms)
-   - **Interpretación**: Sin outliers significativos
-   - **Capacidad**: Puede manejar mucha más carga
+   - Performance: Tiempo de respuesta inferior a 100ms
+   - Consistencia: p95 (89ms) próximo al promedio (97ms) indica baja variabilidad
+   - Evaluación: Sin outliers significativos
+   - Capacidad: Puede soportar carga adicional
 
 3. **Create Order (50ms avg, 110ms p95)**:
-   - ✅ **Muy rápido**: 50ms promedio
-   - ✅ **Sin fallos**: Endpoints críticos de negocio funcionan
-   - **Distribución**:
+   - Performance: 50ms de tiempo promedio de respuesta
+   - Confiabilidad: Sin fallos registrados en endpoint crítico de negocio
+   - Distribución de percentiles:
      - 50% de requests < 50ms
      - 95% de requests < 110ms
-     - Excelente consistencia
+   - Evaluación: Consistencia adecuada
 
 4. **Create Payment (105ms avg, 100ms p95)**:
-   - ✅ **Performance excelente**: < 150ms
-   - ⚠️ **Volumen bajo**: Solo 22 requests (5% conversion rate simulado)
-   - **Por qué bajo volumen**: MixedWorkloadUser simula conversion real
-   - **Conclusión**: Endpoint crítico funciona correctamente
+   - Performance: Tiempo de respuesta inferior a 150ms
+   - Volumen: 22 requests reflejan el 5% de conversion rate simulado
+   - Contexto: MixedWorkloadUser replica patrones de conversión reales
+   - Evaluación: Endpoint crítico operando correctamente
 
-#### 5.4.6 Ejemplo de Reporte Completo Interpretado
+#### 5.4.6 Reporte Completo Interpretado
 
-**Resumen Ejecutivo del Test**:
+**Resumen del Test Ejecutado**:
 
 ```
 ========================================
-📊 Performance Test Analysis
+Performance Test Analysis
 ========================================
-Test Type:    MixedWorkloadUser
-Duration:     2 minutes
-Users:        10 concurrent
-Environment:  Production (Kubernetes)
-Date:         2025-11-04 04:38-04:40
+Test Configuration
+  Target Host:   http://192.168.49.2:32281
+  Start Time:    2025-11-04 04:38:25
+  End Time:      2025-11-04 04:40:35
+  Duration:      130 seconds (~2.17 minutes)
+  Script:        locustfile.py
 ========================================
 
-OVERALL METRICS
+MÉTRICAS GENERALES
 ----------------------------------------
 Total Requests:     669
-Failed Requests:    179 (26.7%) ⚠️
+Failed Requests:    179 (26.7%)
 Throughput (RPS):   5.1
-Avg Response Time:  90ms ✅
-p95 Response Time:  110ms ✅
-p99 Response Time:  2700ms ⚠️
+Avg Response Time:  90ms
+p95 Response Time:  110ms
+p99 Response Time:  2700ms
 
-VERDICT: PARTIAL SUCCESS
 ========================================
 
-✅ FUNCIONANDO CORRECTAMENTE (0% error rate):
-  - Autenticación JWT
-  - Navegación de productos (Browse/List)
-  - Creación de carritos
-  - Creación de órdenes
-  - Procesamiento de pagos
+ENDPOINTS OPERANDO CORRECTAMENTE (0% error rate):
+  - Autenticación JWT (Authenticate)
+  - Listado de productos (Browse Products)
+  - Creación de carritos (/app/api/carts)
+  - Creación de órdenes (Create Order)
+  - Procesamiento de pagos (/app/api/payments)
 
-❌ REQUIERE CORRECCIÓN:
+ENDPOINTS QUE REQUIEREN ATENCIÓN:
   - GET /app/api/products/{id} → 94.5% error rate (400)
-    Causa: IDs aleatorios no existen en BD
-    Acción: Modificar test para usar IDs válidos
+    Causa: IDs aleatorios fuera del rango de productos existentes
+    Acción: Ajustar rango de IDs en locustfile.py
 
   - GET /app/api/users/{id} → 95% error rate (500)
-    Causa: Bug - devuelve 500 en lugar de 404
-    Acción: Corregir exception handling en UserService
+    Causa: Manejo inadecuado de excepciones en UserService
+    Acción: Implementar respuesta 404 apropiada
 
-⚠️ OBSERVACIONES:
-  - p99 de 2700ms indica outliers
-  - Posibles GC pauses o timeouts intermitentes
-  - Throughput bajo (5.1 RPS) - test con pocos usuarios
+OBSERVACIONES:
+  - p99 de 2700ms indica presencia de outliers en las respuestas
+  - Posibles causas: pausas de GC o timeouts intermitentes
+  - Throughput de 5.1 RPS corresponde a test con baja concurrencia
 
 RECOMENDACIONES:
-1. Corregir error 500 en GET /users/{id}
-2. Ejecutar test con 50-100 usuarios para medir capacidad real
-3. Investigar outliers (p99 = 2700ms)
-4. Opcional: Ajustar locustfile para usar IDs válidos
+1. Corregir manejo de excepciones en GET /users/{id}
+2. Ejecutar test con 50-100 usuarios para evaluar capacidad real
+3. Investigar causa de outliers registrados en p99
+4. Ajustar locustfile.py para utilizar rangos de IDs válidos
 ========================================
 ```
 
 #### 5.4.7 Comparación de Resultados Entre Tests
 
-**Baseline vs Current Test**:
+**Comparativa con línea base**:
 
-| Métrica | Baseline (Anterior) | Current Test | Cambio | Análisis |
-|---------|---------------------|--------------|--------|----------|
-| Total Requests | 0 (timeout) | 669 | +669 | ✅ Conectividad arreglada |
-| Error Rate | N/A | 26.7% | N/A | ⚠️ Errores esperados en test |
-| Avg Response | N/A | 90ms | N/A | ✅ Performance excelente |
-| RPS | 0 | 5.1 | +5.1 | ✅ Sistema funcional |
-| Authentication | Fallaba | 100% success | +100% | ✅ JWT funcionando |
+| Métrica | Baseline (Anterior) | Test Actual | Cambio | Análisis |
+|---------|---------------------|-------------|--------|----------|
+| Total Requests | 0 (timeout) | 669 | +669 | Conectividad establecida |
+| Error Rate | N/A | 26.7% | N/A | Errores identificados |
+| Avg Response | N/A | 90ms | N/A | Performance dentro de parámetros |
+| RPS | 0 | 5.1 | +5.1 | Sistema operacional |
+| Authentication | Falla total | 100% success | +100% | Funcionalidad JWT operativa |
 
-**Progreso**:
-- ✅ Problema de conectividad **RESUELTO** (Jenkins → Minikube network)
-- ✅ Locust **ejecutándose** y generando tráfico
-- ✅ Endpoints críticos **funcionando**
-- ⚠️ Endpoints secundarios con errores **esperados/conocidos**
+**Estado del sistema**:
+- Problema de conectividad resuelto (Jenkins → Minikube network)
+- Locust ejecutándose y generando tráfico consistente
+- Endpoints críticos de negocio operando correctamente
+- Endpoints secundarios con errores identificados y documentados
 
-#### 5.4.8 Guía Rápida de Decisiones
+#### 5.4.8 Guía de Decisiones Basada en Resultados
 
-**Matriz de Decisiones**:
+**Árbol de decisión por error rate**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1153,41 +1177,41 @@ RECOMENDACIONES:
 └─────────────────────────────────────────────────────────────┘
 
 Error Rate < 1%
-└─> ✅ PASS - Deploy a producción
+└─> Aprobado para deploy a producción
 
 Error Rate 1-5%
 └─> Si errores son 404 (recursos no existen)
-    ├─> ✅ PASS - Error esperado en load test
+    ├─> Aprobar - Error esperado en contexto de load test
     └─> Si errores son 500/502/503
-        └─> ❌ FAIL - No deployar, investigar
+        └─> No aprobar - Requiere investigación
 
 Error Rate 5-10%
-└─> ⚠️ WARNING - Revisar causas
-    └─> Si mejora con más recursos
-        └─> Escalar pods/replicas
-    └─> Si persiste
-        └─> Optimizar código
+└─> Requiere revisión de causas
+    └─> Si mejora con escalamiento de recursos
+        └─> Incrementar pods/replicas
+    └─> Si persiste después de escalamiento
+        └─> Optimización de código necesaria
 
 Error Rate > 10%
-└─> ❌ CRITICAL FAIL
-    └─> No deployar
-    └─> Investigación urgente
+└─> Nivel crítico
+    └─> No aprobar para deploy
+    └─> Investigación prioritaria requerida
 ```
 
-**Decisión para nuestro test (26.7% error rate)**:
+**Análisis del test ejecutado (26.7% error rate)**:
 ```
-26.7% error rate
-├─> Descomponer errores:
-│   ├─> 103 × 400 (Bad Request) = Esperado ✅
-│   └─> 57 × 500 (Server Error) = Bug ❌
+26.7% error rate total
+├─> Desglose de errores:
+│   ├─> 103 × 400 (Bad Request) = Comportamiento esperado del test
+│   └─> 57 × 500 (Server Error) = Defecto en código
 │
-├─> Si removemos errores esperados (400):
-│   Error rate = 57 / 669 = 8.5% ⚠️
+├─> Excluyendo errores esperados (400):
+│   Error rate ajustado = 57 / 669 = 8.5%
 │
-└─> DECISIÓN:
-    ├─> Corregir bug del 500
-    ├─> Re-ejecutar test
-    └─> Objetivo: < 5% error rate
+└─> CONCLUSIÓN:
+    ├─> Corregir manejo de excepciones en endpoint con error 500
+    ├─> Re-ejecutar test después de corrección
+    └─> Meta: Reducir error rate por debajo de 5%
 ```
 
 ---
