@@ -874,17 +874,12 @@ Database Metrics:
 ### 5.3 Análisis de Resultados
 
 **Indicadores de Sistema Saludable**:
-- ✅ Error rate estable y bajo
-- ✅ Response time constante durante la prueba
-- ✅ RPS sube linealmente con usuarios
-- ✅ CPU/Memory estables
-- ✅ No degradación over time
+-  Error rate estable y bajo
+-  Response time constante durante la prueba
+-  RPS sube linealmente con usuarios
+-  CPU/Memory estables
+-  No degradación over time
 
-**Señales de Alerta**:
-- ⚠️ Response time incrementando gradualmente → Memory pressure
-- ⚠️ Spikes de response time → Garbage collection pauses
-- ⚠️ RPS máximo alcanzado antes de target users → Bottleneck
-- ⚠️ Error rate incrementando → Resource exhaustion
 
 **Cuellos de Botella Comunes**:
 1. **Database Connection Pool**: Incrementar max connections
