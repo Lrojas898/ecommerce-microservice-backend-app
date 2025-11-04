@@ -55,7 +55,8 @@ Headless: ${params.HEADLESS}
                     sh """
                         set -e
 
-                        echo "========================================="
+                    // Asignar la URL fuera del bloque sh
+                    env.API_GATEWAY_URL = "http://192.168.49.2:18080"
                         echo "Setting up Port-Forward to API Gateway"
                         echo "========================================="
 
@@ -91,9 +92,7 @@ Headless: ${params.HEADLESS}
                     // Cambia aquí la IP por la del host Minikube
                     env.API_GATEWAY_URL = "http://<IP_DEL_HOST_MINIKUBE>:18080"
                     echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
-                }
-            }
-        }
+                    echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
 
         stage('Verify Services Health') {
             steps {
@@ -305,8 +304,8 @@ Duration: ${params.RUN_TIME}
 
                             # Run SonarQube analysis
                             echo "Running SonarQube analysis..."
-                            ./sonar-scanner/bin/sonar-scanner \\
-                                -Dsonar.host.url=http://172.17.0.1:9000 \\
+                            ./sonar-scanner/bin/sonar-scanner \
+                                -Dsonar.host.url=http://192.168.49.2:9000 \
                                 -Dsonar.token=squ_1037e66e9bc493d2a288dbca5a9cb503f0637c93 \\
                                 -Dsonar.projectKey=ecommerce-performance-tests \\
                                 -Dsonar.projectName="E-Commerce Performance Tests" \\
@@ -319,7 +318,7 @@ Duration: ${params.RUN_TIME}
                                 -Dsonar.sourceEncoding=UTF-8
 
                             echo "✓ SonarQube analysis completed"
-                            echo "View results at: http://172.17.0.1:9000/dashboard?id=ecommerce-performance-tests"
+                            echo "View results at: http://192.168.49.2:9000/dashboard?id=ecommerce-performance-tests"
                         """
                     } catch (Exception e) {
                         echo "⚠️ SonarQube analysis failed: ${e.message}"
@@ -375,15 +374,6 @@ View Results:
             }
         }
         failure {
-            script {
-                echo "❌ Performance tests failed"
-                echo "Collecting diagnostic information..."
-                
-                sh """
-                    kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} || true
-                    kubectl --insecure-skip-tls-verify top nodes || true
-                    kubectl --insecure-skip-tls-verify top pods -n ${K8S_NAMESPACE} || true
-                """
             }
         }
         always {
@@ -393,7 +383,6 @@ View Results:
                 // Cleanup port-forward
                 sh '''
                     if [ -f /tmp/port-forward-perf.pid ]; then
-                        PID=$(cat /tmp/port-forward-perf.pid)
                         echo "Stopping port-forward (PID: $PID)..."
                         kill $PID 2>/dev/null || true
                         rm -f /tmp/port-forward-perf.pid /tmp/port-forward-perf.log
