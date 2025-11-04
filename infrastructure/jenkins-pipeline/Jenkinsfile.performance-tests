@@ -197,12 +197,55 @@ Duration: ${params.RUN_TIME}
                             # Activate virtual environment
                             . venv/bin/activate
 
-                            locust -f locustfile.py ${params.TEST_TYPE} \
-                                --host=${env.API_GATEWAY_URL} \
-                                --users ${params.USERS} \
-                                --spawn-rate ${params.SPAWN_RATE} \
-                                --run-time ${params.RUN_TIME} \
-                                ${headlessFlag} \
+                            echo ""
+                            echo "========================================="
+                            echo "Locust Configuration:"
+                            echo "  File: locustfile.py"
+                            echo "  Test Type: ${params.TEST_TYPE}"
+                            echo "  Host: ${env.API_GATEWAY_URL}"
+                            echo "  Users: ${params.USERS}"
+                            echo "  Spawn Rate: ${params.SPAWN_RATE}"
+                            echo "  Run Time: ${params.RUN_TIME}"
+                            echo "  Headless: ${params.HEADLESS}"
+                            echo "========================================="
+                            echo ""
+
+                            # Verify Locust can find test classes
+                            echo "Verifying locustfile.py..."
+                            python3 -c "
+import sys
+sys.path.insert(0, '.')
+from locustfile import ${params.TEST_TYPE}
+print(f'✓ Successfully imported ${params.TEST_TYPE}')
+print(f'  Tasks: {len(${params.TEST_TYPE}.tasks) if hasattr(${params.TEST_TYPE}, \"tasks\") else \"N/A\"}')
+print(f'  Base classes: {[c.__name__ for c in ${params.TEST_TYPE}.__bases__]}')
+"
+                            echo ""
+
+                            # Test authentication before running Locust
+                            echo "Testing authentication endpoint..."
+                            AUTH_RESPONSE=\$(curl -s -w "\\nHTTP_CODE:%{http_code}" -X POST ${env.API_GATEWAY_URL}/app/api/authenticate \\
+                                -H "Content-Type: application/json" \\
+                                -d '{"username":"testuser","password":"password123"}' || echo "CURL_FAILED")
+
+                            if echo "\$AUTH_RESPONSE" | grep -q "jwtToken"; then
+                                echo "✓ Authentication test passed"
+                            else
+                                echo "❌ Authentication test failed:"
+                                echo "\$AUTH_RESPONSE"
+                                exit 1
+                            fi
+                            echo ""
+
+                            # Run Locust with verbose logging
+                            echo "Starting Locust..."
+                            locust -f locustfile.py ${params.TEST_TYPE} \\
+                                --host=${env.API_GATEWAY_URL} \\
+                                --users ${params.USERS} \\
+                                --spawn-rate ${params.SPAWN_RATE} \\
+                                --run-time ${params.RUN_TIME} \\
+                                --loglevel DEBUG \\
+                                ${headlessFlag} \\
                                 ${reportFlags}
 
                             deactivate
