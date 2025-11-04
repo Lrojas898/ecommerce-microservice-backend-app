@@ -47,48 +47,29 @@ Headless: ${params.HEADLESS}
             }
         }
 
-        stage('Setup Port-Forward') {
+        stage('Get API Gateway URL') {
             steps {
                 script {
-                    echo "📡 Setting up port-forward to API Gateway..."
-
-                    // Asignar la URL correctamente en Groovy (fuera del sh)
-                    env.API_GATEWAY_URL = "http://192.168.49.2:18080"
-                    echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
+                    echo "🌐 Getting API Gateway URL..."
 
                     sh """
                         set -e
 
-                        echo "Setting up Port-Forward to API Gateway"
-                        echo "========================================="
+                        # Get Minikube IP
+                        MINIKUBE_IP=\$(minikube ip)
+                        echo "Minikube IP: \$MINIKUBE_IP"
 
-                        echo "Cleaning up any existing port-forwards..."
-                        pkill -f 'kubectl.*port-forward.*18080' || true
-                        lsof -ti:18080 | xargs -r kill -9 || true
-                        sleep 2
+                        # Get NodePort for api-gateway
+                        NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
+                        echo "API Gateway NodePort: \$NODE_PORT"
 
-                        # Start kubectl port-forward in background
-                        echo "Starting port-forward on port 18080 (all interfaces)..."
-                        kubectl --insecure-skip-tls-verify port-forward --address 0.0.0.0 -n ${K8S_NAMESPACE} svc/api-gateway 18080:80 > /tmp/port-forward-perf.log 2>&1 &
-                        PORT_FORWARD_PID=\$!
-                        echo "Port-forward started with PID: \$PORT_FORWARD_PID"
-
-                        # Save PID to file for cleanup
-                        echo \$PORT_FORWARD_PID > /tmp/port-forward-perf.pid
-
-                        # Wait for port-forward to be ready
-                        echo "Waiting for port-forward to be ready..."
-                        sleep 5
-
-                        # Verify port-forward is still running
-                        if ! ps -p \$PORT_FORWARD_PID > /dev/null; then
-                            echo "❌ Port-forward failed to start"
-                            cat /tmp/port-forward-perf.log
-                            exit 1
-                        fi
-
-                        echo "✓ Port-forward ready (PID: \$PORT_FORWARD_PID)"
+                        # Save URL to file
+                        echo "http://\$MINIKUBE_IP:\$NODE_PORT" > /tmp/api-gateway-url.txt
                     """
+
+                    // Read the URL from file and set as environment variable
+                    env.API_GATEWAY_URL = sh(script: 'cat /tmp/api-gateway-url.txt', returnStdout: true).trim()
+                    echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
                 }
             }
         }
@@ -118,11 +99,11 @@ Headless: ${params.HEADLESS}
                             else
                                 echo "❌ ERROR: Cannot reach API Gateway at ${env.API_GATEWAY_URL} after 5 attempts"
                                 echo ""
-                                echo "Port-forward logs:"
-                                cat /tmp/port-forward-perf.log || true
-                                echo ""
                                 echo "API Gateway pods:"
                                 kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=api-gateway
+                                echo ""
+                                echo "API Gateway service:"
+                                kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE}
                                 exit 1
                             fi
                         done
@@ -380,17 +361,9 @@ Next Steps:
             script {
                 echo "🧹 Cleaning up resources..."
 
-                // Cleanup port-forward
+                // Cleanup temporary files
                 sh '''
-                    if [ -f /tmp/port-forward-perf.pid ]; then
-                        PID=$(cat /tmp/port-forward-perf.pid)
-                        echo "Stopping port-forward (PID: $PID)..."
-                        kill $PID 2>/dev/null || true
-                        rm -f /tmp/port-forward-perf.pid /tmp/port-forward-perf.log
-                    fi
-
-                    # Also kill any lingering port-forwards
-                    pkill -f 'kubectl.*port-forward.*18080' || true
+                    rm -f /tmp/api-gateway-url.txt || true
                 '''
             }
 
