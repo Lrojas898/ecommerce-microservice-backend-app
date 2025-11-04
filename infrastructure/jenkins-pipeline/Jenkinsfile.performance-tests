@@ -112,25 +112,26 @@ Headless: ${params.HEADLESS}
 
                         # Test connectivity with retries
                         for i in 1 2 3 4 5; do
-                            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" ${env.API_GATEWAY_URL}/app/api/products --max-time 5 || echo "000")
+                            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 10 ${env.API_GATEWAY_URL}/app/api/products 2>&1 || echo "FAILED")
 
-                            if [ "\$HTTP_CODE" != "000" ]; then
+                            if [ "\$HTTP_CODE" = "FAILED" ] || [ "\$HTTP_CODE" = "000" ]; then
+                                if [ \$i -lt 5 ]; then
+                                    echo "⚠️ Attempt \$i/5: Connection failed, retrying in 5 seconds..."
+                                    sleep 5
+                                else
+                                    echo "❌ ERROR: Cannot reach API Gateway at ${env.API_GATEWAY_URL} after 5 attempts"
+                                    echo ""
+                                    echo "Diagnostic information:"
+                                    echo "  - Testing basic connectivity to 192.168.49.2..."
+                                    ping -c 2 192.168.49.2 || echo "  Ping failed"
+                                    echo ""
+                                    echo "  - Testing port 32281..."
+                                    nc -zv 192.168.49.2 32281 || echo "  Port not reachable"
+                                    exit 1
+                                fi
+                            else
                                 echo "✓ API Gateway is reachable (HTTP \$HTTP_CODE)"
                                 break
-                            fi
-
-                            if [ \$i -lt 5 ]; then
-                                echo "Attempt \$i/5: Got HTTP \$HTTP_CODE, retrying in 5 seconds..."
-                                sleep 5
-                            else
-                                echo "❌ ERROR: Cannot reach API Gateway at ${env.API_GATEWAY_URL} after 5 attempts"
-                                echo ""
-                                echo "API Gateway pods:"
-                                kubectl --insecure-skip-tls-verify get pods -n ${K8S_NAMESPACE} -l app=api-gateway
-                                echo ""
-                                echo "API Gateway service:"
-                                kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE}
-                                exit 1
                             fi
                         done
 
@@ -212,14 +213,12 @@ Duration: ${params.RUN_TIME}
 
                             # Verify Locust can find test classes
                             echo "Verifying locustfile.py..."
-                            python3 -c "
-import sys
-sys.path.insert(0, '.')
-from locustfile import ${params.TEST_TYPE}
-print('✓ Successfully imported ${params.TEST_TYPE}')
-print(f'  Base classes: {[c.__name__ for c in ${params.TEST_TYPE}.__bases__]}')
-print(f'  Abstract: {${params.TEST_TYPE}.abstract if hasattr(${params.TEST_TYPE}, \"abstract\") else False}')
-"
+                            if python3 -c "from locustfile import ${params.TEST_TYPE}; print('✓ Successfully imported ${params.TEST_TYPE}')"; then
+                                echo "✓ Test class verified"
+                            else
+                                echo "❌ Failed to import test class ${params.TEST_TYPE}"
+                                exit 1
+                            fi
                             echo ""
 
                             # Test authentication before running Locust
