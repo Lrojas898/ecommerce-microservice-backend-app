@@ -67,7 +67,7 @@ Headless: ${params.HEADLESS}
 
                         # Start kubectl port-forward in background
                         echo "Starting port-forward on port 18080..."
-                        kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 18080:80 > /tmp/port-forward-perf.log 2>&1 &
+                        kubectl --insecure-skip-tls-verify port-forward --address=0.0.0.0 -n ${K8S_NAMESPACE} svc/api-gateway 18080:80 > /tmp/port-forward-perf.log 2>&1 &
                         PORT_FORWARD_PID=\$!
                         echo "Port-forward started with PID: \$PORT_FORWARD_PID"
 
