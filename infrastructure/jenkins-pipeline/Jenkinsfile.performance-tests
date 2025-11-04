@@ -52,13 +52,16 @@ Headless: ${params.HEADLESS}
                 script {
                     echo "📡 Setting up port-forward to API Gateway..."
 
+                    // Asignar la URL correctamente en Groovy (fuera del sh)
+                    env.API_GATEWAY_URL = "http://192.168.49.2:18080"
+                    echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
+
                     sh """
                         set -e
 
                         echo "Setting up Port-Forward to API Gateway"
                         echo "========================================="
 
-                        env.API_GATEWAY_URL = "http://192.168.49.2:18080"
                         echo "Cleaning up any existing port-forwards..."
                         pkill -f 'kubectl.*port-forward.*18080' || true
                         lsof -ti:18080 | xargs -r kill -9 || true
@@ -86,10 +89,6 @@ Headless: ${params.HEADLESS}
 
                         echo "✓ Port-forward ready (PID: \$PORT_FORWARD_PID)"
                     """
-
-                    // Cambia aquí la IP por la del host Minikube
-                    env.API_GATEWAY_URL = "http://<IP_DEL_HOST_MINIKUBE>:18080"
-                    echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
                 }
             }
         }
@@ -346,8 +345,9 @@ View Results:
 - HTML Report: Check Published HTML Reports
 - CSV Data: Check Build Artifacts
 - Full Logs: See console output above
-- SonarQube: http://172.17.0.1:9000/dashboard?id=ecommerce-performance-tests
+- SonarQube: http://192.168.49.2:9000/dashboard?id=ecommerce-performance-tests
 
+Next Steps:
 1. Review report for performance bottlenecks
 2. Check error rates and response times
 3. Compare with previous test runs
@@ -373,7 +373,7 @@ View Results:
         }
         failure {
             script {
-                echo "Pipeline failed."
+                echo "❌ Pipeline failed. Check logs for details."
             }
         }
         always {
