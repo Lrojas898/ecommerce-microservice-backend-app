@@ -59,15 +59,15 @@ Headless: ${params.HEADLESS}
                         echo "Setting up Port-Forward to API Gateway"
                         echo "========================================="
 
-                        # Kill any existing port-forwards on port 18080
+                        env.API_GATEWAY_URL = "http://192.168.49.2:18080"
                         echo "Cleaning up any existing port-forwards..."
                         pkill -f 'kubectl.*port-forward.*18080' || true
                         lsof -ti:18080 | xargs -r kill -9 || true
                         sleep 2
 
                         # Start kubectl port-forward in background
-                        echo "Starting port-forward on port 18080..."
-                        kubectl --insecure-skip-tls-verify port-forward -n ${K8S_NAMESPACE} svc/api-gateway 18080:80 > /tmp/port-forward-perf.log 2>&1 &
+                        echo "Starting port-forward on port 18080 (all interfaces)..."
+                        kubectl --insecure-skip-tls-verify port-forward --address 0.0.0.0 -n ${K8S_NAMESPACE} svc/api-gateway 18080:80 > /tmp/port-forward-perf.log 2>&1 &
                         PORT_FORWARD_PID=\$!
                         echo "Port-forward started with PID: \$PORT_FORWARD_PID"
 
@@ -88,7 +88,8 @@ Headless: ${params.HEADLESS}
                         echo "✓ Port-forward ready (PID: \$PORT_FORWARD_PID)"
                     """
 
-                    env.API_GATEWAY_URL = "http://172.17.0.1:18080"
+                    // Cambia aquí la IP por la del host Minikube
+                    env.API_GATEWAY_URL = "http://<IP_DEL_HOST_MINIKUBE>:18080"
                     echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
                 }
             }
@@ -347,8 +348,8 @@ View Results:
 - CSV Data: Check Build Artifacts
 - Full Logs: See console output above
 - SonarQube: http://172.17.0.1:9000/dashboard?id=ecommerce-performance-tests
-
-Next Steps:
+                        ./sonar-scanner/bin/sonar-scanner \\
+                            -Dsonar.host.url=http://<IP_DEL_HOST_MINIKUBE>:9000 \\
 1. Review report for performance bottlenecks
 2. Check error rates and response times
 3. Compare with previous test runs
@@ -369,7 +370,7 @@ Next Steps:
         }
         unstable {
             script {
-                echo "⚠️ Performance tests completed with warnings"
+                            -Dsonar.host.url=http://192.168.49.2:9000 \\
                 echo "Check the report for high error rates or slow response times"
             }
         }
