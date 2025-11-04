@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     parameters {
-        choice(name: 'ENVIRONMENT', choices: ['dev', 'prod'], description: 'Target environment for performance tests')
+        choice(name: 'ENVIRONMENT', choices: ['prod', 'dev'], description: 'Target environment for performance tests (default: prod)')
         choice(name: 'TEST_TYPE', choices: ['MixedWorkloadUser', 'ProductServiceLoadTest', 'OrderServiceStressTest', 'UserAuthenticationLoadTest', 'ECommercePurchaseUser'], description: 'Type of performance test to run')
         string(name: 'USERS', defaultValue: '100', description: 'Number of concurrent users')
         string(name: 'SPAWN_RATE', defaultValue: '10', description: 'Users spawned per second')
