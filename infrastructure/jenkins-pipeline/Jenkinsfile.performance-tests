@@ -9,6 +9,7 @@ pipeline {
         string(name: 'RUN_TIME', defaultValue: '5m', description: 'Test duration (e.g., 5m, 10m, 1h)')
         booleanParam(name: 'HEADLESS', defaultValue: true, description: 'Run in headless mode (no web UI)')
         string(name: 'MINIKUBE_IP', defaultValue: '192.168.49.2', description: 'Minikube container IP address')
+        string(name: 'API_GATEWAY_NODEPORT', defaultValue: '32281', description: 'API Gateway NodePort (run: kubectl get svc api-gateway -n prod -o jsonpath=\'{.spec.ports[0].nodePort}\')')
     }
 
     environment {
@@ -56,35 +57,45 @@ Headless: ${params.HEADLESS}
                     sh """
                         set -e
 
-                        # Try to get Minikube IP from Docker (fallback to parameter)
+                        # Get Minikube IP (try Docker, fallback to parameter)
                         MINIKUBE_IP="${params.MINIKUBE_IP}"
-
-                        # Try docker inspect if docker is available
                         if command -v docker &> /dev/null; then
                             DOCKER_IP=\$(docker inspect minikube -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "")
                             if [ ! -z "\$DOCKER_IP" ]; then
                                 MINIKUBE_IP="\$DOCKER_IP"
-                                echo "Using Minikube IP from Docker: \$MINIKUBE_IP"
+                                echo "✓ Minikube IP (from Docker): \$MINIKUBE_IP"
                             else
-                                echo "Using Minikube IP from parameter: \$MINIKUBE_IP"
+                                echo "✓ Minikube IP (from parameter): \$MINIKUBE_IP"
                             fi
                         else
-                            echo "Docker not available, using IP from parameter: \$MINIKUBE_IP"
+                            echo "✓ Minikube IP (from parameter): \$MINIKUBE_IP"
                         fi
 
-                        # Get NodePort for api-gateway
-                        NODE_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}')
-                        echo "API Gateway NodePort: \$NODE_PORT"
+                        # Get NodePort (try kubectl, fallback to parameter)
+                        NODE_PORT="${params.API_GATEWAY_NODEPORT}"
+                        if command -v kubectl &> /dev/null; then
+                            KUBECTL_PORT=\$(kubectl --insecure-skip-tls-verify get svc api-gateway -n ${K8S_NAMESPACE} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+                            if [ ! -z "\$KUBECTL_PORT" ]; then
+                                NODE_PORT="\$KUBECTL_PORT"
+                                echo "✓ NodePort (from kubectl): \$NODE_PORT"
+                            else
+                                echo "✓ NodePort (from parameter): \$NODE_PORT"
+                            fi
+                        else
+                            echo "✓ NodePort (from parameter): \$NODE_PORT"
+                        fi
 
                         # Build and save URL
                         API_URL="http://\$MINIKUBE_IP:\$NODE_PORT"
                         echo "\$API_URL" > /tmp/api-gateway-url.txt
+                        echo ""
+                        echo "========================================="
                         echo "API Gateway URL: \$API_URL"
+                        echo "========================================="
                     """
 
                     // Read the URL from file and set as environment variable
                     env.API_GATEWAY_URL = sh(script: 'cat /tmp/api-gateway-url.txt', returnStdout: true).trim()
-                    echo "✓ Using API Gateway URL: ${env.API_GATEWAY_URL}"
                 }
             }
         }
