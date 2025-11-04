@@ -55,8 +55,6 @@ Headless: ${params.HEADLESS}
                     sh """
                         set -e
 
-                    // Asignar la URL fuera del bloque sh
-                    env.API_GATEWAY_URL = "http://192.168.49.2:18080"
                         echo "Setting up Port-Forward to API Gateway"
                         echo "========================================="
 
@@ -92,7 +90,9 @@ Headless: ${params.HEADLESS}
                     // Cambia aquí la IP por la del host Minikube
                     env.API_GATEWAY_URL = "http://<IP_DEL_HOST_MINIKUBE>:18080"
                     echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
-                    echo "✓ API Gateway URL: ${env.API_GATEWAY_URL}"
+                }
+            }
+        }
 
         stage('Verify Services Health') {
             steps {
@@ -296,7 +296,7 @@ Duration: ${params.RUN_TIME}
                             # Download SonarQube Scanner if not present
                             if [ ! -d "sonar-scanner" ]; then
                                 echo "Downloading SonarQube Scanner..."
-                                wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+                                wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip  
                                 unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
                                 mv sonar-scanner-5.0.1.3006-linux sonar-scanner
                                 rm sonar-scanner-cli-5.0.1.3006-linux.zip
@@ -306,15 +306,15 @@ Duration: ${params.RUN_TIME}
                             echo "Running SonarQube analysis..."
                             ./sonar-scanner/bin/sonar-scanner \
                                 -Dsonar.host.url=http://192.168.49.2:9000 \
-                                -Dsonar.token=squ_1037e66e9bc493d2a288dbca5a9cb503f0637c93 \\
-                                -Dsonar.projectKey=ecommerce-performance-tests \\
-                                -Dsonar.projectName="E-Commerce Performance Tests" \\
-                                -Dsonar.projectVersion=1.0 \\
-                                -Dsonar.sources=. \\
-                                -Dsonar.inclusions=**/*.py \\
-                                -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/sonar-scanner/** \\
-                                -Dsonar.language=py \\
-                                -Dsonar.python.version=3.13 \\
+                                -Dsonar.token=squ_1037e66e9bc493d2a288dbca5a9cb503f0637c93 \
+                                -Dsonar.projectKey=ecommerce-performance-tests \
+                                -Dsonar.projectName="E-Commerce Performance Tests" \
+                                -Dsonar.projectVersion=1.0 \
+                                -Dsonar.sources=. \
+                                -Dsonar.inclusions=**/*.py \
+                                -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/sonar-scanner/** \
+                                -Dsonar.language=py \
+                                -Dsonar.python.version=3.13 \
                                 -Dsonar.sourceEncoding=UTF-8
 
                             echo "✓ SonarQube analysis completed"
@@ -347,8 +347,7 @@ View Results:
 - CSV Data: Check Build Artifacts
 - Full Logs: See console output above
 - SonarQube: http://172.17.0.1:9000/dashboard?id=ecommerce-performance-tests
-                        ./sonar-scanner/bin/sonar-scanner \\
-                            -Dsonar.host.url=http://<IP_DEL_HOST_MINIKUBE>:9000 \\
+
 1. Review report for performance bottlenecks
 2. Check error rates and response times
 3. Compare with previous test runs
@@ -369,11 +368,12 @@ View Results:
         }
         unstable {
             script {
-                            -Dsonar.host.url=http://192.168.49.2:9000 \\
                 echo "Check the report for high error rates or slow response times"
             }
         }
         failure {
+            script {
+                echo "Pipeline failed."
             }
         }
         always {
@@ -383,6 +383,7 @@ View Results:
                 // Cleanup port-forward
                 sh '''
                     if [ -f /tmp/port-forward-perf.pid ]; then
+                        PID=$(cat /tmp/port-forward-perf.pid)
                         echo "Stopping port-forward (PID: $PID)..."
                         kill $PID 2>/dev/null || true
                         rm -f /tmp/port-forward-perf.pid /tmp/port-forward-perf.log
