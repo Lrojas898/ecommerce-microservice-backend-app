@@ -43,6 +43,8 @@ El proyecto implementa una arquitectura de CI/CD completa utilizando Jenkins con
 
 ### 1.2 Configuración Base de Jenkins
 
+
+
 **Requisitos del Sistema**:
 - Jenkins 2.528.1 o superior
 - Docker instalado y configurado
@@ -66,6 +68,8 @@ El proyecto implementa una arquitectura de CI/CD completa utilizando Jenkins con
 ## 2. Pipelines Implementados
 
 ### 2.1 Pipeline de Build (`Jenkinsfile.build.local`)
+
+![Imagen de WhatsApp 2025-11-03 a las 00 35 51_2d702f10](https://github.com/user-attachments/assets/8168f070-4c7c-4bd3-874c-bbab92da65c0)
 
 #### Propósito
 Compilar, empaquetar y publicar imágenes Docker de todos los microservicios a Docker Hub.
@@ -254,11 +258,14 @@ stage('SonarQube Analysis') {
 10. Archive Artifacts
 ```
 
-**Tiempo Promedio**: 15-20 minutos (depende de servicios cambiados)
+
 
 ---
 
 ### 2.2 Pipeline de Deploy Dev (`Jenkinsfile.deploy-dev.local`)
+
+![Imagen de WhatsApp 2025-11-03 a las 12 35 53_c60d06e9](https://github.com/user-attachments/assets/b6700dc5-a283-4ac3-bc1a-c75d6058f78c)
+
 
 #### Propósito
 Desplegar microservicios al ambiente de desarrollo en Kubernetes (namespace `dev`).
@@ -481,13 +488,12 @@ stage('Run Integration Tests') {
 9. Run Integration Tests
    ↓
 10. Show Access URLs
-```
 
-**Tiempo Promedio**: 10-15 minutos
-
----
 
 ### 2.3 Pipeline de Deploy Prod (`Jenkinsfile.deploy-prod.local`)
+
+![Imagen de WhatsApp 2025-11-03 a las 13 18 01_b798f5a8](https://github.com/user-attachments/assets/765deee3-6225-4ebd-9796-9bac123526b2)
+
 
 #### Propósito
 Desplegar a ambiente de producción con aprobación manual, pruebas E2E completas y análisis de calidad.
@@ -516,7 +522,12 @@ POD_READY_TIMEOUT = '300'
 ##### Stages 1-9: Idénticos a Deploy Dev
 (Ver sección 2.2)
 
-##### Stage 10: Manual Approval ⚠️
+##### Stage 10: Manual Approval 
+
+![Imagen de WhatsApp 2025-11-03 a las 12 41 10_a250d08f](https://github.com/user-attachments/assets/283720da-0058-4907-946e-6b0fe101cb9d)
+
+
+
 ```groovy
 stage('Manual Approval') {
     steps {
@@ -559,7 +570,7 @@ stage('Wait for Services Ready') {
 
 **Timeout por servicio**: 5 minutos
 
-##### Stage 12: Run E2E Tests ⭐
+##### Stage 12: Run E2E Tests 
 ```groovy
 stage('Run E2E Tests') {
     when { !params.SKIP_E2E_TESTS }
@@ -942,10 +953,9 @@ stage('Run Integration Tests') {
 ```
 
 **Características**:
-- ✅ Base de datos real (MySQL en contenedor)
-- ✅ Comunicación entre servicios simulada
-- ✅ Cleanup automático de recursos
-- ✅ Ejecución en paralelo cuando es posible
+-  Base de datos real (MySQL en contenedor)
+-  Comunicación entre servicios simulada
+-  Cleanup automático de recursos
 
 ---
 
@@ -1214,6 +1224,10 @@ stage('Run E2E Tests') {
 
 ### 3.5 Pruebas de Performance (Locust)
 
+
+![Imagen de WhatsApp 2025-11-03 a las 14 23 04_a638c06d](https://github.com/user-attachments/assets/0c393e4f-ae72-4ad0-9315-bf315af66584)
+
+
 #### Ubicación
 ```
 tests/performance/
@@ -1271,6 +1285,16 @@ class ECommercePurchaseUser(HttpUser):
 ```
 
 #### Otros Escenarios de Prueba
+
+![Imagen de WhatsApp 2025-11-03 a las 14 24 41_d2afb382](https://github.com/user-attachments/assets/5eaf315c-03aa-49f6-a29b-b49dec62cfe2)
+
+
+![Imagen de WhatsApp 2025-11-03 a las 14 24 50_892b1794](https://github.com/user-attachments/assets/1fc644c6-2f63-419a-a9c4-61a319ed5ae9)
+
+
+![Imagen de WhatsApp 2025-11-03 a las 14 24 59_1b894d1f](https://github.com/user-attachments/assets/d0448117-a771-44eb-a41e-0c568af64694)
+
+
 
 **1. MixedWorkloadUser**: Carga mixta de todas las operaciones
 **2. ProductServiceLoadTest**: Solo carga en servicio de productos
@@ -1346,14 +1370,14 @@ Total Duration: 43.964 seconds
 
 | Métrica | Valor | Estado |
 |---------|-------|--------|
-| **Tests Ejecutados** | 19 | ✅ |
-| **Tests Exitosos** | 19 | ✅ |
-| **Tests Fallidos** | 0 | ✅ |
-| **Tests con Errores** | 0 | ✅ |
-| **Tests Saltados** | 0 | ✅ |
-| **Tasa de Éxito** | **100%** | ✅ |
-| **Tiempo Total** | 43.964s | ✅ |
-| **Tiempo Promedio/Test** | ~2.3s | ✅ |
+| **Tests Ejecutados** | 19 |  |
+| **Tests Exitosos** | 19 |  |
+| **Tests Fallidos** | 0 |  |
+| **Tests con Errores** | 0 |  |
+| **Tests Saltados** | 0 |  |
+| **Tasa de Éxito** | **100%** |  |
+| **Tiempo Total** | 43.964s |  |
+| **Tiempo Promedio/Test** | ~2.3s |  |
 
 #### Desglose por Suite de Pruebas
 
@@ -1362,9 +1386,9 @@ Total Duration: 43.964 seconds
 Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
 Time elapsed: ~6.5s
 
-✅ testUserRegistration - PASSED (2.1s)
-✅ testUserLogin - PASSED (2.2s)
-✅ testDuplicateUserRejection - PASSED (2.2s)
+ testUserRegistration - PASSED (2.1s)
+ testUserLogin - PASSED (2.2s)
+ testDuplicateUserRejection - PASSED (2.2s)
 ```
 
 **2. ProductBrowsingE2ETest**
@@ -1372,10 +1396,10 @@ Time elapsed: ~6.5s
 Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
 Time elapsed: ~8.2s
 
-✅ testGetAllProducts - PASSED (2.0s)
-✅ testGetProductById - PASSED (2.1s)
-✅ testSearchByCategory - PASSED (2.0s)
-✅ testNonExistentProduct - PASSED (2.1s)
+ testGetAllProducts - PASSED (2.0s)
+ testGetProductById - PASSED (2.1s)
+ testSearchByCategory - PASSED (2.0s)
+ testNonExistentProduct - PASSED (2.1s)
 ```
 
 **3. OrderCreationE2ETest**
@@ -1383,9 +1407,9 @@ Time elapsed: ~8.2s
 Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
 Time elapsed: ~7.8s
 
-✅ testCreateOrder - PASSED (2.8s)
-✅ testGetOrder - PASSED (2.5s)
-✅ testGetUserOrders - PASSED (2.5s)
+ testCreateOrder - PASSED (2.8s)
+ testGetOrder - PASSED (2.5s)
+ testGetUserOrders - PASSED (2.5s)
 ```
 
 **4. PaymentProcessingE2ETest**
@@ -1393,10 +1417,10 @@ Time elapsed: ~7.8s
 Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
 Time elapsed: ~8.3s
 
-✅ testPaymentProcessing - PASSED (2.5s)
-✅ testGetPaymentByOrder - PASSED (1.8s)
-✅ testPaymentFailure - PASSED (2.0s)
-✅ testDuplicatePayment - PASSED (2.0s)
+ testPaymentProcessing - PASSED (2.5s)
+ testGetPaymentByOrder - PASSED (1.8s)
+ testPaymentFailure - PASSED (2.0s)
+ testDuplicatePayment - PASSED (2.0s)
 ```
 
 **5. ShippingFulfillmentE2ETest**
@@ -1404,9 +1428,9 @@ Time elapsed: ~8.3s
 Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
 Time elapsed: ~6.7s
 
-✅ testShippingCreation - PASSED (2.4s)
-✅ testShippingTracking - PASSED (2.2s)
-✅ testCompleteShipping - PASSED (2.1s)
+ testShippingCreation - PASSED (2.4s)
+ testShippingTracking - PASSED (2.2s)
+ testCompleteShipping - PASSED (2.1s)
 ```
 
 **6. DefaultUserAuthenticationE2ETest**
@@ -1414,13 +1438,13 @@ Time elapsed: ~6.7s
 Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
 Time elapsed: ~4.4s
 
-✅ testValidAuthentication - PASSED (2.2s)
-✅ testInvalidAuthentication - PASSED (2.2s)
+ testValidAuthentication - PASSED (2.2s)
+ testInvalidAuthentication - PASSED (2.2s)
 ```
 
 #### Análisis e Interpretación
 
-**✅ Aspectos Positivos**:
+** Aspectos Positivos**:
 
 1. **Tasa de Éxito del 100%**
    - Todas las 19 pruebas E2E pasaron exitosamente
@@ -1433,12 +1457,12 @@ Time elapsed: ~4.4s
    - Indica buena performance de los microservicios
 
 3. **Cobertura Completa de Flujos**
-   - ✅ Registro de usuarios
-   - ✅ Autenticación
-   - ✅ Navegación de productos
-   - ✅ Creación de órdenes
-   - ✅ Procesamiento de pagos
-   - ✅ Gestión de envíos
+   -  Registro de usuarios
+   -  Autenticación
+   -  Navegación de productos
+   -  Creación de órdenes
+   -  Procesamiento de pagos
+   -  Gestión de envíos
 
 4. **Comunicación Entre Microservicios Funcional**
    - API Gateway enruta correctamente
@@ -1454,10 +1478,10 @@ Time elapsed: ~4.4s
 
 | Indicador | Valor | Benchmark | Evaluación |
 |-----------|-------|-----------|------------|
-| Tasa de Éxito | 100% | >95% | ⭐ Excelente |
-| Tiempo de Respuesta | ~2.3s/test | <5s | ⭐ Excelente |
-| Cobertura E2E | 6 flujos | ≥5 flujos | ✅ Cumple |
-| Estabilidad | 0 flaky tests | 0 | ⭐ Excelente |
+| Tasa de Éxito | 100% | >95% |  Excelente |
+| Tiempo de Respuesta | ~2.3s/test | <5s |  Excelente |
+| Cobertura E2E | 6 flujos | ≥5 flujos |  Cumple |
+| Estabilidad | 0 flaky tests | 0 |  Excelente |
 
 **🔍 Observaciones Importantes**:
 
@@ -1486,16 +1510,14 @@ Time elapsed: ~4.4s
    - Todos los tests verificados
    - Artefactos generados correctamente
 
-**✅ Conclusión de Pruebas E2E**:
+** Conclusión de Pruebas E2E**:
 
 Las pruebas E2E demuestran que:
-1. ✅ Todos los microservicios están desplegados correctamente
-2. ✅ La comunicación entre servicios funciona
-3. ✅ Los flujos de negocio críticos están operativos
-4. ✅ El API Gateway enruta correctamente
-5. ✅ La arquitectura de microservicios es estable
-
-**Recomendación**: ✅ **APROBADO PARA PRODUCCIÓN**
+1.  Todos los microservicios están desplegados correctamente
+2.  La comunicación entre servicios funciona
+3.  Los flujos de negocio críticos están operativos
+4.  El API Gateway enruta correctamente
+5.  La arquitectura de microservicios es estable
 
 ---
 
@@ -1503,402 +1525,14 @@ Las pruebas E2E demuestran que:
 
 #### Resumen de Ejecución
 
-```
-===========================================
-Performance Test Results - Locust
-===========================================
-Test Duration: 2025-11-03 19:32:18 - 19:37:28 (5 min 10s)
-Target Host: http://172.17.0.1:18080
-Script: locustfile.py
-Test Type: ECommercePurchaseUser
-Users: 100 concurrent users
-Spawn Rate: 10 users/second
-===========================================
-```
+![Imagen de WhatsApp 2025-11-03 a las 23 43 30_cf9304c9](https://github.com/user-attachments/assets/7236c492-60cb-4f26-9987-018a38655e71)
 
-#### Estadísticas Generales
-
-| Métrica | Valor | Estado |
-|---------|-------|--------|
-| **Total Requests** | 15,755 | 📊 |
-| **Failed Requests** | 15,755 (100%) | ❌ |
-| **Successful Requests** | 0 (0%) | ❌ |
-| **Requests/Second (RPS)** | 50.7 | 📊 |
-| **Average Response Time** | 1ms | ⚠️ |
-| **Min Response Time** | 0ms | ⚠️ |
-| **Max Response Time** | 49ms | ⚠️ |
-| **Error Rate** | **100%** | ❌ |
-
-#### Desglose de Requests por Endpoint
-
-**Requests Fallidos por Categoría**:
-
-| Endpoint | Requests | Failures | Avg (ms) | Error |
-|----------|----------|----------|----------|-------|
-| **Browse Products** (GET) | 5,895 | 5,895 (100%) | 1ms | Connection refused |
-| **View Product** (GET) | 2,932 | 2,932 (100%) | 0ms | Connection refused |
-| **Create Order** (POST) | 2,004 | 2,004 (100%) | 0ms | Connection refused |
-| **Get User** (GET) | 1,483 | 1,483 (100%) | 1ms | Connection refused |
-| **Add to Cart** (POST) | 2,483 | 2,483 (100%) | 1ms | Connection refused |
-| **Orders API** (POST) | 479 | 479 (100%) | 0ms | Connection refused |
-| **Products API** (GET) | 479 | 479 (100%) | 1ms | Connection refused |
-
-#### Error Analysis
-
-**Tipo de Error**: `[Errno 111] Connection refused`
-
-**Ocurrencias por Endpoint**:
-```
-Browse Products:     5,895 errors
-View Product:        2,932 errors
-Create Order:        2,004 errors
-Get User:            1,483 errors
-Add to Cart:         2,483 errors
-Others:                958 errors
-─────────────────────────────
-TOTAL:              15,755 errors (100%)
-```
-
-#### Distribución de Respuestas (Percentiles)
-
-| Percentile | Response Time |
-|------------|---------------|
-| 50% (Median) | 1ms |
-| 60% | 1ms |
-| 70% | 1ms |
-| 80% | 1ms |
-| 90% | 2ms |
-| 95% | 2ms |
-| 99% | 4ms |
-| 100% (Max) | 50ms |
 
 ---
 
-#### 🔍 Análisis Detallado e Interpretación
+## 5. Apéndices
 
-**❌ PROBLEMA CRÍTICO IDENTIFICADO**:
-
-El error `[Errno 111] Connection refused` indica que **el servicio NO estaba disponible** durante las pruebas de performance.
-
-**Causa Raíz**:
-
-```
-Target Host: http://172.17.0.1:18080
-                    └─ Docker Gateway IP
-                                └─ Puerto del port-forward
-```
-
-**Posibles Causas**:
-
-1. **Port-Forward No Establecido**
-   - El port-forward de kubectl no estaba activo
-   - O se detuvo durante la prueba
-
-2. **API Gateway No Disponible**
-   - El servicio api-gateway no estaba desplegado
-   - O estaba en estado CrashLoopBackOff
-
-3. **Problema de Red**
-   - Reglas de firewall bloqueando conexión
-   - Network policy de Kubernetes bloqueando tráfico
-
-4. **Puerto Incorrecto**
-   - El API Gateway está en otro puerto
-   - El servicio usa HTTPS en lugar de HTTP
-
-**Evidencia del Problema**:
-
-1. **100% de Tasa de Fallo**
-   - Ningún request fue exitoso
-   - Todos fallaron inmediatamente
-
-2. **Tiempos de Respuesta Muy Bajos (0-1ms)**
-   - Indica fallo inmediato de conexión
-   - No hubo procesamiento de requests
-   - El error ocurre antes de llegar al servidor
-
-3. **Error Consistente**
-   - Mismo error en TODOS los endpoints
-   - Mismo error durante toda la prueba (5 min)
-   - No hay variación o intermitencia
-
-**📊 Análisis de Carga (si el servicio estuviera disponible)**:
-
-A pesar del fallo, podemos analizar la **capacidad de generación de carga** de Locust:
-
-| Métrica | Valor | Evaluación |
-|---------|-------|------------|
-| **RPS Generado** | 50.7 req/s | ✅ Bueno |
-| **Usuarios Concurrentes** | 100 | ✅ Configurado |
-| **Spawn Rate** | 10 users/s | ✅ Gradual |
-| **Duración** | 5 min 10s | ✅ Adecuado |
-| **Total Requests** | 15,755 | ✅ Volumen Alto |
-
-**Distribución de Carga por Tarea**:
-
-```
-Browse Products (weight=3):  37.4% (5,895 requests)
-View Product (weight=2):     18.6% (2,932 requests)
-Add to Cart (weight=1):      15.8% (2,483 requests)
-Create Order (weight=1):     12.7% (2,004 requests)
-Get User (weight=1):          9.4% (1,483 requests)
-Others:                       6.1% (  958 requests)
-```
-
-✅ La distribución respeta los pesos configurados en el locustfile.
-
----
-
-#### 🛠️ Solución y Recomendaciones
-
-**Pasos para Resolver el Problema**:
-
-1. **Verificar Estado del Cluster**
-   ```bash
-   kubectl get pods -n prod
-   kubectl get svc api-gateway -n prod
-   ```
-
-2. **Establecer Port-Forward Correctamente**
-   ```bash
-   # Opción 1: Port-forward directo
-   kubectl port-forward -n prod svc/api-gateway 18080:80
-
-   # Opción 2: Usar socat (recomendado para CI/CD)
-   sudo socat TCP-LISTEN:18080,fork,reuseaddr,bind=0.0.0.0 \
-        TCP:$(minikube ip):32118 &
-   ```
-
-3. **Verificar Conectividad**
-   ```bash
-   # Desde Jenkins container
-   curl -v http://172.17.0.1:18080/app/api/products
-
-   # Debe retornar 200 OK, no "Connection refused"
-   ```
-
-4. **Actualizar Pipeline de Performance**
-   ```groovy
-   stage('Setup Port-Forward') {
-       steps {
-           sh """
-               # Kill existing port-forwards
-               pkill -f 'kubectl port-forward.*api-gateway' || true
-
-               # Start new port-forward
-               kubectl port-forward -n prod svc/api-gateway 18080:80 &
-               PORT_FORWARD_PID=\$!
-               echo \$PORT_FORWARD_PID > /tmp/pf.pid
-
-               # Wait and verify
-               sleep 5
-               curl --max-time 5 http://172.17.0.1:18080/actuator/health || exit 1
-           """
-       }
-   }
-   ```
-
-5. **Re-ejecutar Pruebas de Performance**
-   - Con el port-forward activo
-   - Monitorear logs en tiempo real
-
-**Mejoras Recomendadas**:
-
-1. **Health Check Pre-Test**
-   ```python
-   # En locustfile.py
-   def on_start(self):
-       # Verificar que servicio está disponible antes de iniciar
-       response = self.client.get("/actuator/health")
-       if response.status_code != 200:
-           raise Exception("Service not available!")
-   ```
-
-2. **Monitoring Durante Prueba**
-   ```bash
-   # Monitorear pods durante carga
-   watch kubectl top pods -n prod
-   ```
-
-3. **Retry Logic en Locust**
-   ```python
-   @task
-   def browse_products(self):
-       with self.client.get(
-           "/app/api/products",
-           catch_response=True
-       ) as response:
-           if response.status_code == 0:  # Connection error
-               response.failure("Connection refused")
-   ```
-
----
-
-#### 📊 Métricas Esperadas (Benchmark)
-
-Una vez resuelto el problema de conectividad, estas serían las métricas esperadas:
-
-| Métrica | Valor Objetivo | Crítico Si |
-|---------|----------------|------------|
-| **Tasa de Éxito** | >99% | <95% |
-| **Avg Response Time** | <500ms | >2000ms |
-| **95th Percentile** | <1000ms | >5000ms |
-| **RPS** | >100 | <20 |
-| **Error Rate** | <1% | >5% |
-
-**Carga Recomendada para Pruebas**:
-
-1. **Prueba de Carga Normal**
-   - Users: 50
-   - Spawn Rate: 5/s
-   - Duration: 10 min
-
-2. **Prueba de Estrés**
-   - Users: 200
-   - Spawn Rate: 10/s
-   - Duration: 15 min
-
-3. **Prueba de Pico (Spike)**
-   - Users: 500
-   - Spawn Rate: 50/s
-   - Duration: 5 min
-
----
-
-#### ✅ Conclusión de Pruebas de Performance
-
-**Estado Actual**: ❌ **NO EXITOSO**
-
-**Razón**: Problema de conectividad, no problema de performance del sistema.
-
-**Próximos Pasos**:
-1. ✅ Corregir configuración de port-forward
-2. ✅ Verificar deployment de api-gateway
-3. ✅ Re-ejecutar pruebas de performance
-4. ✅ Analizar resultados con servicios disponibles
-
-**Nota Importante**:
-Este resultado NO indica un problema con los microservicios. Los servicios funcionan correctamente (como demuestran las pruebas E2E exitosas). El problema es de configuración de red en el ambiente de pruebas de performance.
-
----
-
-### 4.3 Comparación E2E vs Performance
-
-| Aspecto | E2E Tests | Performance Tests |
-|---------|-----------|-------------------|
-| **Propósito** | Validar funcionalidad | Validar rendimiento |
-| **Estado** | ✅ Exitoso (100%) | ❌ Fallido (conexión) |
-| **Requests** | 19 tests | 15,755 requests |
-| **Duración** | 43.9s | 5 min 10s |
-| **Ambiente** | Prod (port-forward activo) | Prod (port-forward inactivo) |
-| **Conclusión** | Sistema funcional | Re-test necesario |
-
-**Lección Aprendida**:
-- Las pruebas E2E validan funcionalidad ✅
-- Las pruebas de performance requieren configuración de red estable ⚠️
-- Implementar health checks pre-test es crítico 🔧
-
----
-
-## 5. Conclusiones y Recomendaciones
-
-### 5.1 Estado General del Proyecto
-
-**✅ Aspectos Exitosos**:
-
-1. **CI/CD Pipeline Completo**
-   - ✅ Build pipeline funcionando con detección inteligente de cambios
-   - ✅ Deploy dev pipeline automático
-   - ✅ Deploy prod pipeline con aprobación manual
-   - ✅ Integración con SonarQube
-
-2. **Estrategia de Pruebas Robusta**
-   - ✅ Pruebas unitarias en todos los servicios
-   - ✅ 6 pruebas de integración con Testcontainers
-   - ✅ 19 pruebas E2E cubriendo flujos críticos
-   - ✅ Framework de performance con Locust
-
-3. **Arquitectura de Microservicios Estable**
-   - ✅ 9 microservicios desplegados
-   - ✅ Service Discovery (Eureka) funcional
-   - ✅ API Gateway enrutando correctamente
-   - ✅ Comunicación inter-servicio estable
-
-4. **Calidad de Código**
-   - ✅ Análisis con SonarQube
-   - ✅ Cobertura con JaCoCo
-   - ✅ Reportes automáticos
-
-### 5.2 Áreas de Mejora
-
-**⚠️ Problemas Identificados**:
-
-1. **Pruebas de Performance**
-   - ❌ Problema de conectividad en port-forward
-   - 🔧 Requiere configuración de red más robusta
-   - 🔧 Implementar health checks pre-test
-
-2. **Cobertura de Pruebas**
-   - ⚠️ Algunas pruebas de integración requieren más escenarios
-   - ⚠️ Falta coverage de edge cases
-   - ⚠️ Necesita pruebas de seguridad
-
-3. **Monitoring y Observabilidad**
-   - ⚠️ Falta integración con APM (Application Performance Monitoring)
-   - ⚠️ No hay alertas automáticas
-   - ⚠️ Logs centralizados limitados
-
-### 5.3 Recomendaciones
-
-**Corto Plazo (1-2 semanas)**:
-
-1. ✅ Corregir configuración de pruebas de performance
-2. ✅ Implementar health checks en todos los pipelines
-3. ✅ Agregar más pruebas de integración
-4. ✅ Configurar alertas de Jenkins
-
-**Mediano Plazo (1 mes)**:
-
-1. 📊 Implementar dashboard de métricas (Grafana)
-2. 📊 Integrar con ELK Stack para logs
-3. 📊 Agregar pruebas de seguridad (OWASP)
-4. 📊 Implementar blue-green deployment
-
-**Largo Plazo (3 meses)**:
-
-1. 🚀 Migrar a GitOps con ArgoCD
-2. 🚀 Implementar service mesh (Istio)
-3. 🚀 Chaos engineering con Chaos Monkey
-4. 🚀 Auto-scaling basado en métricas
-
-### 5.4 Métricas de Calidad Alcanzadas
-
-| Métrica | Objetivo | Alcanzado | Estado |
-|---------|----------|-----------|--------|
-| **Cobertura de Código** | >70% | Variable por servicio | ⚠️ |
-| **Tasa de Éxito E2E** | >95% | 100% | ✅ |
-| **Tiempo de Build** | <30 min | 15-20 min | ✅ |
-| **Tiempo de Deploy** | <15 min | 10-15 min | ✅ |
-| **Pruebas Automatizadas** | >15 tests | 25+ tests | ✅ |
-| **Ambientes** | 3 (dev, stage, prod) | 2 (dev, prod) | ⚠️ |
-
-### 5.5 Conclusión Final
-
-El proyecto ha implementado exitosamente:
-- ✅ Pipeline de CI/CD robusto y automatizado
-- ✅ Estrategia de pruebas multi-nivel (unit, integration, E2E, performance)
-- ✅ Arquitectura de microservicios funcional
-- ✅ Integración con herramientas de calidad (SonarQube, JaCoCo)
-
-**Estado del Proyecto**: ✅ **PRODUCCIÓN READY**
-
-Con las correcciones mencionadas en pruebas de performance y las mejoras recomendadas, el sistema estará en excelente estado para escalamiento y mantenimiento a largo plazo.
-
----
-
-## 6. Apéndices
-
-### 6.1 Comandos Útiles
+### 5.1 Comandos Útiles
 
 **Jenkins**:
 ```bash
@@ -1952,7 +1586,7 @@ locust -f locustfile.py ECommercePurchaseUser \
     --html report.html
 ```
 
-### 6.2 Estructura de Repositorio
+### 5.2 Estructura de Repositorio
 
 ```
 ecommerce-microservice-backend-app/
@@ -2002,17 +1636,10 @@ ecommerce-microservice-backend-app/
     └── README.md
 ```
 
-### 6.3 Enlaces Útiles
+### 5.3 Enlaces Útiles
 
 - **Jenkins**: http://localhost:8080
 - **SonarQube**: http://localhost:9000
 - **Eureka Dashboard**: http://{minikube-ip}:8761
 - **API Gateway**: http://{minikube-ip}:32118
 
----
-
-**Documento Generado**: 2025-11-03
-**Versión**: 1.0
-**Autor**: DevOps Team - Taller 2
-**Universidad**: ICESI
-**Curso**: Ingeniería de Software V
