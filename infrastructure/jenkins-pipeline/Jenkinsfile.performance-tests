@@ -216,9 +216,9 @@ Duration: ${params.RUN_TIME}
 import sys
 sys.path.insert(0, '.')
 from locustfile import ${params.TEST_TYPE}
-print(f'✓ Successfully imported ${params.TEST_TYPE}')
-print(f'  Tasks: {len(${params.TEST_TYPE}.tasks) if hasattr(${params.TEST_TYPE}, \"tasks\") else \"N/A\"}')
+print('✓ Successfully imported ${params.TEST_TYPE}')
 print(f'  Base classes: {[c.__name__ for c in ${params.TEST_TYPE}.__bases__]}')
+print(f'  Abstract: {${params.TEST_TYPE}.abstract if hasattr(${params.TEST_TYPE}, \"abstract\") else False}')
 "
                             echo ""
 
