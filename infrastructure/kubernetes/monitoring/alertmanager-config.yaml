@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app: alertmanager
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    # Routing configuration
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'default-receiver'
+
+      routes:
+        # Critical alerts (pods down, services unavailable)
+        - match:
+            severity: critical
+          receiver: 'critical-receiver'
+          continue: true
+
+        # High priority alerts (high CPU, memory, errors)
+        - match:
+            severity: warning
+          receiver: 'warning-receiver'
+          continue: true
+
+    # Receivers configuration
+    receivers:
+      # Default receiver - logs all alerts
+      - name: 'default-receiver'
+        # Alerts are logged to stdout by default
+
+      # Critical alerts receiver
+      - name: 'critical-receiver'
+        # You can add webhook, email, or Slack here later
+        # Example for webhook (uncomment and configure):
+        # webhook_configs:
+        #   - url: 'http://your-webhook-url/alerts'
+        #     send_resolved: true
+
+      # Warning alerts receiver
+      - name: 'warning-receiver'
+        # You can add webhook, email, or Slack here later
+
+    # Inhibition rules - prevent duplicate alerts
+    inhibit_rules:
+      # If pod is down, don't alert on high CPU/memory for that pod
+      - source_match:
+          severity: 'critical'
+        target_match:
+          severity: 'warning'
+        equal: ['alertname', 'pod', 'namespace']
+
+---
+# Example configuration for Slack (commented out)
+# To enable Slack notifications:
+# 1. Uncomment the slack_configs section below
+# 2. Replace YOUR_SLACK_WEBHOOK_URL with your actual webhook
+# 3. Apply: kubectl apply -f alertmanager-config.yaml
+#
+# receivers:
+#   - name: 'critical-receiver'
+#     slack_configs:
+#       - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+#         channel: '#alerts-critical'
+#         title: 'Critical Alert - E-Commerce Microservices'
+#         text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+#         send_resolved: true
+#
+#   - name: 'warning-receiver'
+#     slack_configs:
+#       - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+#         channel: '#alerts-warnings'
+#         title: 'Warning - E-Commerce Microservices'
+#         text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+#         send_resolved: true
+
+---
+# Example configuration for Email (commented out)
+# To enable Email notifications:
+# 1. Uncomment the email_configs section below
+# 2. Replace SMTP settings with your actual values
+# 3. Apply: kubectl apply -f alertmanager-config.yaml
+#
+# global:
+#   smtp_smarthost: 'smtp.gmail.com:587'
+#   smtp_from: 'alerts@yourcompany.com'
+#   smtp_auth_username: 'your-email@gmail.com'
+#   smtp_auth_password: 'your-app-password'
+#
+# receivers:
+#   - name: 'critical-receiver'
+#     email_configs:
+#       - to: 'devops-team@yourcompany.com'
+#         headers:
+#           Subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+#         html: '{{ range .Alerts }}{{ .Annotations.description }}<br>{{ end }}'

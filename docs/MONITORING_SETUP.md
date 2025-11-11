@@ -72,7 +72,7 @@
 2. **Scraping**: Prometheus scrapes (consulta) estas métricas cada 15 segundos
 3. **Almacenamiento**: Prometheus almacena las métricas en su base de datos Time Series (TSDB)
 4. **Visualización**: Grafana consulta Prometheus y muestra dashboards interactivos
-5. **Alertas** (opcional): Prometheus puede enviar alertas basadas en reglas definidas
+5. **Alertas**: Prometheus evalúa reglas de alerta y envía notificaciones a Alertmanager cuando se activan
 
 ---
 
@@ -104,7 +104,48 @@
 - Targets: `http://localhost:9090/targets`
 - Graph: `http://localhost:9090/graph`
 
-### 2.2 Grafana
+### 2.2 Alertmanager
+
+**Versión**: v0.26.0
+
+**Descripción**: Gestor de alertas que recibe alertas de Prometheus y las enruta a diferentes canales de notificación.
+
+**Características**:
+- ✅ Agrupación de alertas similares
+- ✅ Inhibición de alertas duplicadas
+- ✅ Silenciamiento temporal de alertas
+- ✅ Enrutamiento a múltiples receptores (Slack, Email, Webhook)
+- ✅ Deduplicación automática
+
+**Recursos Kubernetes**:
+- **ConfigMap**: `alertmanager-config` (configuración de enrutamiento)
+- **ConfigMap**: `prometheus-alert-rules` (reglas de alerta)
+- **Deployment**: `alertmanager` (1 replica)
+- **Service**: `alertmanager` (ClusterIP, puerto 9093)
+- **Service**: `alertmanager-external` (NodePort 30093)
+
+**Endpoints**:
+- UI: `http://<minikube-ip>:30093` o `kubectl port-forward -n monitoring svc/alertmanager 9093:9093`
+- Alerts: `http://localhost:9093/#/alerts`
+
+**Alertas Configuradas**:
+
+**Críticas (severity: critical)**:
+- `ServiceDown`: Servicio no responde por >1 minuto
+- `APIGatewayDown`: API Gateway caído (bloquea todo el tráfico)
+- `EurekaDown`: Service Discovery caído
+- `HighMemoryUsage`: Memoria heap >85% por >5 minutos
+- `HighHTTPErrorRate`: Tasa de errores 5xx >5% por >2 minutos
+- `PaymentServiceErrors`: Errores en servicio de pagos (impacto en ingresos)
+
+**Advertencias (severity: warning)**:
+- `HighCPUUsage`: CPU >80% por >5 minutos
+- `HighResponseTime`: Tiempo de respuesta promedio >1s
+- `OrderCreationLatency`: Creación de orden >2s
+- `HighDatabaseConnectionPoolUsage`: Pool de conexiones DB >80%
+- `FrequentPodRestarts`: Pod reiniciando frecuentemente
+
+### 2.3 Grafana
 
 **Versión**: v10.2.2
 
@@ -178,7 +219,7 @@ management:
 
 ### 3.2 Deployment Automático (Recomendado)
 
-Usa el script de deployment automatizado:
+#### Paso 1: Desplegar Prometheus + Grafana
 
 ```bash
 # Navegar al directorio de monitoring
@@ -198,9 +239,28 @@ El script hará:
 4. ✅ Esperar a que estén ready
 5. ✅ Mostrar información de acceso
 
+#### Paso 2: Desplegar Alertmanager + Reglas de Alerta
+
+```bash
+# En el mismo directorio
+chmod +x deploy-alerting.sh
+
+# Ejecutar el script
+./deploy-alerting.sh
+```
+
+El script hará:
+1. ✅ Desplegar reglas de alerta
+2. ✅ Desplegar Alertmanager
+3. ✅ Actualizar configuración de Prometheus
+4. ✅ Reiniciar Prometheus para cargar alertas
+5. ✅ Mostrar información de acceso y verificación
+
 ### 3.3 Deployment Manual
 
 Si prefieres hacerlo manualmente:
+
+**Parte 1: Prometheus + Grafana**
 
 ```bash
 # 1. Crear namespace
@@ -222,6 +282,23 @@ kubectl wait --for=condition=available --timeout=300s deployment/prometheus -n m
 kubectl wait --for=condition=available --timeout=300s deployment/grafana -n monitoring
 ```
 
+**Parte 2: Alertmanager + Alertas**
+
+```bash
+# 1. Desplegar reglas de alerta
+kubectl apply -f infrastructure/kubernetes/monitoring/prometheus-alert-rules.yaml
+
+# 2. Desplegar Alertmanager
+kubectl apply -f infrastructure/kubernetes/monitoring/alertmanager-config.yaml
+kubectl apply -f infrastructure/kubernetes/monitoring/alertmanager.yaml
+
+# 3. Reiniciar Prometheus para cargar reglas
+kubectl rollout restart deployment/prometheus -n monitoring
+
+# 4. Esperar a que Alertmanager esté ready
+kubectl wait --for=condition=available --timeout=120s deployment/alertmanager -n monitoring
+```
+
 ### 3.4 Acceso a las UIs
 
 #### Opción 1: NodePort (Minikube)
@@ -232,6 +309,7 @@ minikube ip
 
 # Prometheus: http://<minikube-ip>:30090
 # Grafana: http://<minikube-ip>:30030
+# Alertmanager: http://<minikube-ip>:30093
 ```
 
 #### Opción 2: Port-Forward (Cualquier Kubernetes)
@@ -245,6 +323,10 @@ kubectl port-forward -n monitoring svc/prometheus 9090:9090
 kubectl port-forward -n monitoring svc/grafana 3000:3000
 # Abrir: http://localhost:3000
 # Login: admin / admin123
+
+# Alertmanager (en otra terminal)
+kubectl port-forward -n monitoring svc/alertmanager 9093:9093
+# Abrir: http://localhost:9093
 ```
 
 ---

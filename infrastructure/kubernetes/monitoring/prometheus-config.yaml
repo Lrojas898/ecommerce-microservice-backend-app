@@ -15,11 +15,15 @@ data:
         cluster: 'ecommerce-k8s'
         environment: 'local'
 
-    # Alertmanager configuration (optional, can be added later)
-    # alerting:
-    #   alertmanagers:
-    #     - static_configs:
-    #         - targets: ['alertmanager:9093']
+    # Alertmanager configuration
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    # Alert rules
+    rule_files:
+      - '/etc/prometheus/rules/*.yml'
 
     # Scrape configurations
     scrape_configs:

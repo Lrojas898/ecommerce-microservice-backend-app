@@ -1,0 +1,96 @@
+---
+# Alertmanager Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.26.0
+          args:
+            - '--config.file=/etc/alertmanager/alertmanager.yml'
+            - '--storage.path=/alertmanager'
+            - '--log.level=info'
+          ports:
+            - name: web
+              containerPort: 9093
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: storage
+              mountPath: /alertmanager
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9093
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9093
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+        - name: storage
+          emptyDir: {}
+
+---
+# Alertmanager Service (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  type: ClusterIP
+  ports:
+    - name: web
+      port: 9093
+      targetPort: 9093
+  selector:
+    app: alertmanager
+
+---
+# Alertmanager Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-external
+  namespace: monitoring
+  labels:
+    app: alertmanager
+spec:
+  type: NodePort
+  ports:
+    - name: web
+      port: 9093
+      targetPort: 9093
+      nodePort: 30093
+  selector:
+    app: alertmanager

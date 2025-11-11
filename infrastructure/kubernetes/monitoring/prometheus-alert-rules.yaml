@@ -1,0 +1,208 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: monitoring
+  labels:
+    app: prometheus
+data:
+  alert-rules.yml: |
+    groups:
+      # =====================================================
+      # CRITICAL ALERTS - Service Availability
+      # =====================================================
+      - name: service_availability
+        interval: 30s
+        rules:
+          # Service Down - No metrics received
+          - alert: ServiceDown
+            expr: up{job="ecommerce-microservices"} == 0
+            for: 1m
+            labels:
+              severity: critical
+              tier: availability
+            annotations:
+              summary: "Service {{ $labels.service }} is DOWN"
+              description: "Service {{ $labels.service }} in namespace {{ $labels.kubernetes_namespace }} has been down for more than 1 minute."
+              impact: "Users cannot access {{ $labels.service }} functionality"
+              action: "Check pod logs: kubectl logs -n {{ $labels.kubernetes_namespace }} -l app={{ $labels.service }}"
+
+          # API Gateway Down
+          - alert: APIGatewayDown
+            expr: up{service="api-gateway"} == 0
+            for: 30s
+            labels:
+              severity: critical
+              tier: infrastructure
+            annotations:
+              summary: "API Gateway is DOWN - ALL services unreachable"
+              description: "API Gateway is down. All client requests will fail."
+              impact: "CRITICAL - All user traffic blocked"
+              action: "Immediate action required: kubectl logs -n {{ $labels.kubernetes_namespace }} -l app=api-gateway"
+
+          # Eureka (Service Discovery) Down
+          - alert: EurekaDown
+            expr: up{service="eureka"} == 0
+            for: 1m
+            labels:
+              severity: critical
+              tier: infrastructure
+            annotations:
+              summary: "Service Discovery (Eureka) is DOWN"
+              description: "Eureka server is down. Services cannot register or discover each other."
+              impact: "Service-to-service communication may fail"
+              action: "Restart Eureka: kubectl rollout restart deployment/service-discovery -n {{ $labels.kubernetes_namespace }}"
+
+      # =====================================================
+      # CRITICAL ALERTS - Resource Exhaustion
+      # =====================================================
+      - name: resource_exhaustion
+        interval: 30s
+        rules:
+          # High Memory Usage
+          - alert: HighMemoryUsage
+            expr: |
+              (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) * 100 > 85
+            for: 5m
+            labels:
+              severity: critical
+              tier: resources
+            annotations:
+              summary: "High memory usage on {{ $labels.application }}"
+              description: "Service {{ $labels.application }} is using {{ $value | humanize }}% of heap memory."
+              impact: "Risk of OutOfMemoryError and service crash"
+              action: "Consider scaling: kubectl scale deployment/{{ $labels.application }} --replicas=2 -n {{ $labels.kubernetes_namespace }}"
+
+          # High CPU Usage
+          - alert: HighCPUUsage
+            expr: |
+              process_cpu_usage * 100 > 80
+            for: 5m
+            labels:
+              severity: warning
+              tier: resources
+            annotations:
+              summary: "High CPU usage on {{ $labels.application }}"
+              description: "Service {{ $labels.application }} is using {{ $value | humanize }}% CPU."
+              impact: "Performance degradation, slow response times"
+              action: "Check for CPU-intensive operations or consider scaling"
+
+      # =====================================================
+      # CRITICAL ALERTS - Error Rates
+      # =====================================================
+      - name: error_rates
+        interval: 30s
+        rules:
+          # High HTTP Error Rate (5xx)
+          - alert: HighHTTPErrorRate
+            expr: |
+              (
+                sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) by (application, kubernetes_namespace)
+                /
+                sum(rate(http_server_requests_seconds_count[5m])) by (application, kubernetes_namespace)
+              ) * 100 > 5
+            for: 2m
+            labels:
+              severity: critical
+              tier: errors
+            annotations:
+              summary: "High error rate on {{ $labels.application }}"
+              description: "Service {{ $labels.application }} has {{ $value | humanize }}% error rate (5xx responses)."
+              impact: "Users experiencing failures"
+              action: "Check logs: kubectl logs -n {{ $labels.kubernetes_namespace }} -l app={{ $labels.application }} --tail=100"
+
+          # Payment Service Errors (Most Critical)
+          - alert: PaymentServiceErrors
+            expr: |
+              sum(rate(http_server_requests_seconds_count{application="PAYMENT-SERVICE", status=~"5.."}[5m])) > 0.1
+            for: 1m
+            labels:
+              severity: critical
+              tier: business
+            annotations:
+              summary: "Payment service is experiencing errors"
+              description: "Payment service has error rate of {{ $value | humanize }} req/s. Payment processing may be failing."
+              impact: "CRITICAL - Customer payments failing, revenue loss"
+              action: "Immediate investigation required. Check payment gateway connectivity and database."
+
+      # =====================================================
+      # WARNING ALERTS - Performance Degradation
+      # =====================================================
+      - name: performance
+        interval: 30s
+        rules:
+          # High Response Time
+          - alert: HighResponseTime
+            expr: |
+              (
+                sum(rate(http_server_requests_seconds_sum[5m])) by (application, kubernetes_namespace)
+                /
+                sum(rate(http_server_requests_seconds_count[5m])) by (application, kubernetes_namespace)
+              ) > 1
+            for: 5m
+            labels:
+              severity: warning
+              tier: performance
+            annotations:
+              summary: "High response time on {{ $labels.application }}"
+              description: "Service {{ $labels.application }} has average response time of {{ $value | humanize }}s."
+              impact: "Poor user experience, slow application"
+              action: "Investigate slow endpoints or database queries"
+
+          # Order Creation Latency
+          - alert: OrderCreationLatency
+            expr: |
+              (
+                sum(rate(http_server_requests_seconds_sum{application="ORDER-SERVICE", uri=~".*orders.*", method="POST"}[5m]))
+                /
+                sum(rate(http_server_requests_seconds_count{application="ORDER-SERVICE", uri=~".*orders.*", method="POST"}[5m]))
+              ) > 2
+            for: 3m
+            labels:
+              severity: warning
+              tier: business
+            annotations:
+              summary: "Order creation is slow"
+              description: "Order creation taking {{ $value | humanize }}s on average."
+              impact: "Users experiencing delays during checkout"
+              action: "Check order-service performance and database"
+
+      # =====================================================
+      # WARNING ALERTS - Database Issues
+      # =====================================================
+      - name: database
+        interval: 30s
+        rules:
+          # High Database Connection Pool Usage
+          - alert: HighDatabaseConnectionPoolUsage
+            expr: |
+              (hikaricp_connections_active / hikaricp_connections_max) * 100 > 80
+            for: 5m
+            labels:
+              severity: warning
+              tier: database
+            annotations:
+              summary: "High database connection pool usage on {{ $labels.application }}"
+              description: "Service {{ $labels.application }} is using {{ $value | humanize }}% of database connections."
+              impact: "Risk of connection exhaustion, requests may timeout"
+              action: "Increase connection pool size or investigate slow queries"
+
+      # =====================================================
+      # INFO ALERTS - Pod Restarts
+      # =====================================================
+      - name: pod_health
+        interval: 30s
+        rules:
+          # Frequent Pod Restarts
+          - alert: FrequentPodRestarts
+            expr: |
+              rate(kube_pod_container_status_restarts_total[15m]) > 0.1
+            for: 5m
+            labels:
+              severity: warning
+              tier: stability
+            annotations:
+              summary: "Pod {{ $labels.pod }} is restarting frequently"
+              description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value | humanize }} times in the last 15 minutes."
+              impact: "Service instability, potential crashes"
+              action: "Check pod logs for errors: kubectl logs {{ $labels.pod }} -n {{ $labels.namespace }} --previous"
