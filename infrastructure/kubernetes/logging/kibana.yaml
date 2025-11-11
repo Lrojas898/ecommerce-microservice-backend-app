@@ -1,0 +1,99 @@
+---
+# Kibana Service (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: logging
+  labels:
+    app: kibana
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5601
+      targetPort: 5601
+  selector:
+    app: kibana
+
+---
+# Kibana Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana-external
+  namespace: logging
+  labels:
+    app: kibana
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 5601
+      targetPort: 5601
+      nodePort: 30561
+  selector:
+    app: kibana
+
+---
+# Kibana Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: logging
+  labels:
+    app: kibana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      containers:
+        - name: kibana
+          image: docker.elastic.co/kibana/kibana:8.11.0
+          env:
+            # Connect to Elasticsearch
+            - name: ELASTICSEARCH_HOSTS
+              value: "http://elasticsearch:9200"
+            # Disable security for simplicity (enable in production!)
+            - name: ELASTICSEARCH_USERNAME
+              value: ""
+            - name: ELASTICSEARCH_PASSWORD
+              value: ""
+            # Server configuration
+            - name: SERVER_NAME
+              value: "kibana"
+            - name: SERVER_HOST
+              value: "0.0.0.0"
+          ports:
+            - name: http
+              containerPort: 5601
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
