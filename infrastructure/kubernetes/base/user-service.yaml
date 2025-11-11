@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: luisrojasc/user-service:v0.1.0-20251102-231111
+          image: luisrojasc/user-service:v0.1.0-20251111-104445
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
@@ -52,6 +52,13 @@ spec:
               value: "true"
             - name: EUREKA_CLIENT_FETCH_REGISTRY
               value: "true"
+            # Jaeger Distributed Tracing Configuration
+            - name: SPRING_ZIPKIN_BASE_URL
+              value: "http://jaeger-collector.tracing.svc.cluster.local:9411"
+            - name: SPRING_SLEUTH_SAMPLER_PROBABILITY
+              value: "1.0"
+            - name: SPRING_APPLICATION_NAME
+              value: "user-service"
             # H2 Database Configuration for Development
             # Database config is handled by dev profile in application-dev.yml
           resources:

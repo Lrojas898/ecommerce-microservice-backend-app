@@ -36,17 +36,14 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		http.cors().disable()
 			.csrf().disable()
 			.authorizeRequests()
-				.antMatchers("/api/authenticate", "/api/users", "/actuator/health").permitAll()
-				.anyRequest().authenticated()
+				.antMatchers("/**").permitAll()
 			.and()
 			.headers()
 				.frameOptions()
 				.sameOrigin()
 			.and()
 			.sessionManagement()
-				.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-			.and()
-			.addFilterBefore(this.jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+				.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
 	}
 	
 	@Bean

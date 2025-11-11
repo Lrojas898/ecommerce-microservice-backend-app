@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: favourite-service
-          image: luisrojasc/favourite-service:v0.1.0-20251102-231111
+          image: luisrojasc/favourite-service:v0.1.0-20251111-104445
           imagePullPolicy: Always
           ports:
             - containerPort: 8086
@@ -52,6 +52,13 @@ spec:
               value: "true"
             - name: EUREKA_CLIENT_FETCH_REGISTRY
               value: "true"
+            # Jaeger Distributed Tracing Configuration
+            - name: SPRING_ZIPKIN_BASE_URL
+              value: "http://jaeger-collector.tracing.svc.cluster.local:9411"
+            - name: SPRING_SLEUTH_SAMPLER_PROBABILITY
+              value: "1.0"
+            - name: SPRING_APPLICATION_NAME
+              value: "favourite-service"
             - name: EUREKA_INSTANCE_PREFERIPADDRESS
               value: "false"
             - name: EUREKA_INSTANCE_HOSTNAME

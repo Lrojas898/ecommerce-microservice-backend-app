@@ -1,0 +1,248 @@
+---
+# Jaeger All-in-One Deployment
+# Includes Collector, Query, and UI components
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: tracing
+  labels:
+    app: jaeger
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: all-in-one
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/component: all-in-one
+    spec:
+      containers:
+      - name: jaeger
+        image: jaegertracing/all-in-one:1.52
+        imagePullPolicy: IfNotPresent
+        ports:
+        # Agent ports (receive traces from application)
+        - containerPort: 5775
+          protocol: UDP
+          name: zipkin-compact
+        - containerPort: 6831
+          protocol: UDP
+          name: jaeger-compact
+        - containerPort: 6832
+          protocol: UDP
+          name: jaeger-binary
+        # Collector ports (receive traces from agents)
+        - containerPort: 14268
+          protocol: TCP
+          name: jaeger-collect
+        - containerPort: 14250
+          protocol: TCP
+          name: jaeger-grpc
+        - containerPort: 9411
+          protocol: TCP
+          name: zipkin
+        # Query/UI port
+        - containerPort: 16686
+          protocol: TCP
+          name: jaeger-ui
+        # Health check port
+        - containerPort: 14269
+          protocol: TCP
+          name: health
+        # Prometheus metrics
+        - containerPort: 14271
+          protocol: TCP
+          name: metrics
+        env:
+        - name: COLLECTOR_ZIPKIN_HOST_PORT
+          value: ":9411"
+        - name: COLLECTOR_OTLP_ENABLED
+          value: "true"
+        - name: SPAN_STORAGE_TYPE
+          value: "memory"
+        # Memory storage settings (adjust based on your needs)
+        - name: MEMORY_MAX_TRACES
+          value: "10000"
+        # Sampling configuration
+        - name: SAMPLING_STRATEGIES_FILE
+          value: /etc/jaeger/sampling_strategies.json
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 14269
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 14269
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: sampling-config
+          mountPath: /etc/jaeger
+      volumes:
+      - name: sampling-config
+        configMap:
+          name: jaeger-sampling-config
+
+---
+# Jaeger Service for internal communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector
+  namespace: tracing
+  labels:
+    app: jaeger
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: collector
+spec:
+  type: ClusterIP
+  ports:
+  - name: jaeger-collector-http
+    port: 14268
+    protocol: TCP
+    targetPort: 14268
+  - name: jaeger-collector-grpc
+    port: 14250
+    protocol: TCP
+    targetPort: 14250
+  - name: zipkin
+    port: 9411
+    protocol: TCP
+    targetPort: 9411
+  - name: jaeger-compact
+    port: 6831
+    protocol: UDP
+    targetPort: 6831
+  - name: jaeger-binary
+    port: 6832
+    protocol: UDP
+    targetPort: 6832
+  selector:
+    app: jaeger
+
+---
+# Jaeger Query Service (UI)
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query
+  namespace: tracing
+  labels:
+    app: jaeger
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+spec:
+  type: NodePort
+  ports:
+  - name: jaeger-ui
+    port: 16686
+    protocol: TCP
+    targetPort: 16686
+    nodePort: 30686  # Access UI at http://<node-ip>:30686
+  selector:
+    app: jaeger
+
+---
+# Jaeger Agent Service (for UDP traces)
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-agent
+  namespace: tracing
+  labels:
+    app: jaeger
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: agent
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service
+  ports:
+  - name: zipkin-compact
+    port: 5775
+    protocol: UDP
+    targetPort: 5775
+  - name: jaeger-compact
+    port: 6831
+    protocol: UDP
+    targetPort: 6831
+  - name: jaeger-binary
+    port: 6832
+    protocol: UDP
+    targetPort: 6832
+  selector:
+    app: jaeger
+
+---
+# ConfigMap for sampling strategies
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-sampling-config
+  namespace: tracing
+  labels:
+    app: jaeger
+data:
+  sampling_strategies.json: |
+    {
+      "default_strategy": {
+        "type": "probabilistic",
+        "param": 1.0
+      },
+      "service_strategies": [
+        {
+          "service": "user-service",
+          "type": "probabilistic",
+          "param": 1.0
+        },
+        {
+          "service": "product-service",
+          "type": "probabilistic",
+          "param": 1.0
+        },
+        {
+          "service": "order-service",
+          "type": "probabilistic",
+          "param": 1.0
+        },
+        {
+          "service": "payment-service",
+          "type": "probabilistic",
+          "param": 1.0
+        },
+        {
+          "service": "shipping-service",
+          "type": "probabilistic",
+          "param": 1.0
+        },
+        {
+          "service": "favourite-service",
+          "type": "probabilistic",
+          "param": 1.0
+        },
+        {
+          "service": "api-gateway",
+          "type": "probabilistic",
+          "param": 1.0
+        }
+      ]
+    }

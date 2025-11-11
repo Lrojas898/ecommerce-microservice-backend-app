@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: proxy-client
-          image: luisrojasc/proxy-client:v0.1.0-20251102-231111
+          image: luisrojasc/proxy-client:v0.1.0-20251111-104445
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

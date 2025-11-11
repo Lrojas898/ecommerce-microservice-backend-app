@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-config
-  namespace: dev
+  namespace: prod
 data:
   POSTGRES_DB: ecommerce_users
   POSTGRES_USER: ecommerce_user
@@ -12,7 +12,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgresql
-  namespace: dev
+  namespace: prod
 spec:
   replicas: 1
   selector:
@@ -46,7 +46,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgresql
-  namespace: dev
+  namespace: prod
 spec:
   selector:
     app: postgresql
@@ -59,7 +59,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
-  namespace: dev
+  namespace: prod
 spec:
   accessModes:
     - ReadWriteOnce
