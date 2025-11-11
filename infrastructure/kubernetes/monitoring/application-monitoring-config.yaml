@@ -1,0 +1,34 @@
+# ============================================================
+# Common Monitoring Configuration for All Microservices
+# ============================================================
+#
+# Add this configuration to each microservice's application.yml
+# OR create this as application-monitoring.yml and activate with profile
+#
+# SPRING_PROFILES_ACTIVE=dev,monitoring
+# ============================================================
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose prometheus, health, info, and metrics endpoints
+        include: prometheus,health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+    tags:
+      # Add application name as tag for all metrics
+      application: ${spring.application.name}

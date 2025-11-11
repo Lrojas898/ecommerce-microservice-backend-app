@@ -1,0 +1,174 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+  labels:
+    app: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'ecommerce-k8s'
+        environment: 'local'
+
+    # Alertmanager configuration (optional, can be added later)
+    # alerting:
+    #   alertmanagers:
+    #     - static_configs:
+    #         - targets: ['alertmanager:9093']
+
+    # Scrape configurations
+    scrape_configs:
+      # Prometheus self-monitoring
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+            labels:
+              service: 'prometheus'
+              tier: 'monitoring'
+
+      # Kubernetes API Server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+          - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: default;kubernetes;https
+
+      # Kubernetes Nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+
+      # Kubernetes Pods (automatic discovery)
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - dev
+                - prod
+                - default
+        relabel_configs:
+          # Only scrape pods with prometheus.io/scrape annotation
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          # Use the prometheus.io/path annotation or default to /actuator/prometheus
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+            replacement: $1
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: ^$
+            replacement: /actuator/prometheus
+          # Use the prometheus.io/port annotation or pod port
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          # Preserve useful labels
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: replace
+            target_label: application
+
+      # E-Commerce Microservices (manual configuration for reliability)
+      - job_name: 'ecommerce-microservices'
+        metrics_path: '/actuator/prometheus'
+        scrape_interval: 10s
+        static_configs:
+          - targets:
+              - 'user-service.dev:8081'
+              - 'user-service.prod:8081'
+            labels:
+              service: 'user-service'
+              tier: 'backend'
+
+          - targets:
+              - 'product-service.dev:8082'
+              - 'product-service.prod:8082'
+            labels:
+              service: 'product-service'
+              tier: 'backend'
+
+          - targets:
+              - 'order-service.dev:8083'
+              - 'order-service.prod:8083'
+            labels:
+              service: 'order-service'
+              tier: 'backend'
+
+          - targets:
+              - 'payment-service.dev:8084'
+              - 'payment-service.prod:8084'
+            labels:
+              service: 'payment-service'
+              tier: 'backend'
+
+          - targets:
+              - 'shipping-service.dev:8085'
+              - 'shipping-service.prod:8085'
+            labels:
+              service: 'shipping-service'
+              tier: 'backend'
+
+          - targets:
+              - 'favourite-service.dev:8086'
+              - 'favourite-service.prod:8086'
+            labels:
+              service: 'favourite-service'
+              tier: 'backend'
+
+      # Infrastructure Services
+      - job_name: 'infrastructure-services'
+        metrics_path: '/actuator/prometheus'
+        scrape_interval: 15s
+        static_configs:
+          - targets:
+              - 'service-discovery.dev:8761'
+              - 'service-discovery.prod:8761'
+            labels:
+              service: 'eureka'
+              tier: 'infrastructure'
+
+          - targets:
+              - 'api-gateway.dev:8080'
+              - 'api-gateway.prod:8080'
+            labels:
+              service: 'api-gateway'
+              tier: 'infrastructure'
+
+          - targets:
+              - 'proxy-client.dev:8087'
+              - 'proxy-client.prod:8087'
+            labels:
+              service: 'proxy-client'
+              tier: 'infrastructure'
