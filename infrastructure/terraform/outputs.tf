@@ -1,139 +1,161 @@
-# ECR Outputs
-output "ecr_repositories" {
-  description = "ECR repository URLs"
-  value       = module.ecr.repository_urls
+# ============================================================
+# Cluster Outputs
+# ============================================================
+
+output "cluster_id" {
+  description = "The ID of the Kubernetes cluster"
+  value       = module.kubernetes_cluster.cluster_id
 }
 
-output "ecr_login_command" {
-  description = "Command to login to ECR"
-  value       = module.ecr.ecr_login_command
+output "cluster_name" {
+  description = "The name of the Kubernetes cluster"
+  value       = module.kubernetes_cluster.cluster_name
 }
 
-# Jenkins Outputs
-output "jenkins_url" {
-  description = "Jenkins server URL"
-  value       = module.jenkins.jenkins_url
+output "cluster_endpoint" {
+  description = "The endpoint for the Kubernetes cluster"
+  value       = module.kubernetes_cluster.cluster_endpoint
+  sensitive   = true
 }
 
-output "jenkins_public_ip" {
-  description = "Jenkins public IP"
-  value       = module.jenkins.jenkins_public_ip
+output "cluster_region" {
+  description = "The region where the cluster is deployed"
+  value       = var.cluster_region
 }
 
-output "jenkins_ssh_command" {
-  description = "SSH to Jenkins"
-  value       = module.jenkins.jenkins_ssh_command
+output "cluster_ipv4" {
+  description = "The public IPv4 address of the cluster"
+  value       = module.kubernetes_cluster.cluster_ipv4
 }
 
-output "get_jenkins_password" {
-  description = "Get Jenkins initial password"
-  value       = module.jenkins.get_jenkins_password_command
+# ============================================================
+# Networking Outputs
+# ============================================================
+
+output "loadbalancer_ip" {
+  description = "The LoadBalancer IP address for Ingress (use this for DNS)"
+  value       = module.networking.loadbalancer_ip
 }
 
-# SonarQube Outputs (runs on same instance as Jenkins via Docker Compose)
-output "sonarqube_url" {
-  description = "SonarQube server URL (running on Jenkins instance)"
-  value       = "http://${module.jenkins.jenkins_public_ip}:9000"
+output "loadbalancer_hostname" {
+  description = "The LoadBalancer hostname for Ingress"
+  value       = module.networking.loadbalancer_hostname
 }
 
-output "sonarqube_credentials" {
-  description = "SonarQube default credentials"
-  value       = "Username: admin | Password: admin (change on first login)"
+output "ingress_nginx_installed" {
+  description = "Whether NGINX Ingress Controller is installed"
+  value       = module.networking.ingress_nginx_installed
 }
 
-# EKS Outputs
-output "eks_cluster_name" {
-  description = "EKS cluster name"
-  value       = module.eks.cluster_name
+output "cert_manager_installed" {
+  description = "Whether cert-manager is installed"
+  value       = module.networking.cert_manager_installed
 }
 
-output "eks_cluster_endpoint" {
-  description = "EKS cluster endpoint"
-  value       = module.eks.cluster_endpoint
+# ============================================================
+# Namespaces Output
+# ============================================================
+
+output "namespaces" {
+  description = "Created Kubernetes namespaces"
+  value       = module.kubernetes_cluster.namespaces
 }
 
-output "eks_kubectl_config" {
-  description = "kubectl config command"
-  value       = module.eks.kubectl_config_command
+# ============================================================
+# Kubeconfig Output
+# ============================================================
+
+output "kubeconfig" {
+  description = "Kubeconfig for accessing the cluster"
+  value       = module.kubernetes_cluster.kubeconfig
+  sensitive   = true
 }
 
-output "eks_scale_down_command" {
-  description = "Command to scale down to save costs"
-  value       = module.eks.scale_down_command
+# ============================================================
+# Configuration Summary
+# ============================================================
+
+output "infrastructure_summary" {
+  description = "Summary of the infrastructure"
+  value = {
+    project     = var.project_name
+    environment = var.environment
+    region      = var.cluster_region
+    cluster     = module.kubernetes_cluster.cluster_name
+    nodes = {
+      size       = var.node_pool_size
+      count      = var.node_pool_count
+      auto_scale = var.node_pool_auto_scale
+    }
+    total_ram_gb   = var.node_pool_size == "s-4vcpu-8gb" ? var.node_pool_count * 8 : "check node size"
+    estimated_cost = "$${var.node_pool_count * 48 + 12}/month" # nodes + loadbalancer
+  }
 }
 
-# RDS PostgreSQL Outputs
-output "postgres_endpoint" {
-  description = "PostgreSQL database endpoint"
-  value       = module.rds.postgres_endpoint
-}
-
-output "postgres_database_name" {
-  description = "PostgreSQL database name"
-  value       = module.rds.postgres_database_name
-}
-
-output "postgres_secret_arn" {
-  description = "ARN of the secret containing PostgreSQL credentials"
-  value       = module.rds.postgres_secret_arn
-}
+# ============================================================
+# Next Steps Output
+# ============================================================
 
 output "next_steps" {
-  description = "Next steps after infrastructure deployment"
+  description = "Next steps after infrastructure is created"
   value       = <<-EOT
 
-    ═══════════════════════════════════════════════════════════════════
-    ✅ INFRAESTRUCTURA DESPLEGADA EXITOSAMENTE
-    ═══════════════════════════════════════════════════════════════════
+    ╔══════════════════════════════════════════════════════════════╗
+    ║         Infrastructure Created Successfully!                  ║
+    ╚══════════════════════════════════════════════════════════════╝
 
-    📦 ECR REPOSITORIES CREADOS (9 servicios):
-    ${join("\n    ", [for name, url in module.ecr.repository_urls : "${name}: ${url}"])}
+    📋 Next Steps:
 
-    🔐 ECR LOGIN:
-       ${module.ecr.ecr_login_command}
+    1. Configure kubectl to access your cluster:
 
-    📋 JENKINS SERVER:
-       URL: ${module.jenkins.jenkins_url}
-       IP:  ${module.jenkins.jenkins_public_ip}
-       SSH: ${module.jenkins.jenkins_ssh_command}
+       doctl kubernetes cluster kubeconfig save ${module.kubernetes_cluster.cluster_name}
 
-       Obtener contraseña inicial:
-       ${module.jenkins.get_jenkins_password_command}
+       Or save the kubeconfig output:
+       terraform output -raw kubeconfig > ~/.kube/config-ecommerce
+       export KUBECONFIG=~/.kube/config-ecommerce
 
-    🔍 SONARQUBE SERVER (running on Jenkins instance):
-       URL: http://${module.jenkins.jenkins_public_ip}:9000
-       Credenciales: admin / admin (change on first login)
+    2. Verify cluster access:
 
-    ☸️  EKS CLUSTER:
-       Nombre: ${module.eks.cluster_name}
-       Endpoint: ${module.eks.cluster_endpoint}
-
-       Configurar kubectl:
-       ${module.eks.kubectl_config_command}
-
-       Crear namespaces:
-       kubectl create namespace dev
-       kubectl create namespace staging
-       kubectl create namespace production
-
-       Verificar node group:
+       kubectl cluster-info
        kubectl get nodes
+       kubectl get namespaces
 
-       ⚠️  PARA AHORRAR COSTOS (apagar sin eliminar):
-       ${module.eks.scale_down_command}
+    3. Note the LoadBalancer IP for DNS configuration:
 
-    📋 SIGUIENTES PASOS:
+       LoadBalancer IP: ${module.networking.loadbalancer_ip}
 
-       1. Acceder a Jenkins: ${module.jenkins.jenkins_url}
-       2. Configurar kubectl: ${module.eks.kubectl_config_command}
-       3. Verificar namespaces: kubectl get namespaces
-       4. Configurar credenciales en Jenkins (AWS, GitHub, ECR)
-       5. Crear pipelines en Jenkins usando Jenkinsfiles en infrastructure/jenkins/
-       6. Ejecutar pipeline DEV para construir y pushear imágenes
-       7. Ejecutar pipeline STAGE para desplegar en staging
-       8. Ejecutar pruebas (unitarias, integración, E2E, performance)
-       9. Ejecutar pipeline PROD para desplegar en producción
+       Configure your DNS records:
+       api.yourdomain.com     → ${module.networking.loadbalancer_ip}
+       jaeger.yourdomain.com  → ${module.networking.loadbalancer_ip}
+       grafana.yourdomain.com → ${module.networking.loadbalancer_ip}
 
-    ═══════════════════════════════════════════════════════════════════
+    4. Deploy your applications:
+
+       cd ../kubernetes
+       kubectl apply -f base/ -n prod
+       kubectl apply -f tracing/ -n tracing
+
+    5. Monitor deployment:
+
+       kubectl get pods -n prod
+       kubectl get ingress -n prod
+
+    📊 Cluster Information:
+       - Name: ${module.kubernetes_cluster.cluster_name}
+       - Region: ${var.cluster_region}
+       - Nodes: ${var.node_pool_count}x ${var.node_pool_size}
+       - Total RAM: ~${var.node_pool_count * 8}GB
+       - Estimated Cost: ~$${var.node_pool_count * 48 + 12}/month
+
+    🔐 Security Note:
+       - Kubeconfig is stored in Terraform state (sensitive)
+       - Use 'terraform output -raw kubeconfig' to retrieve it
+       - Consider using remote state backend for team collaboration
+
+    📚 Documentation:
+       - Terraform: ./README.md
+       - Kubernetes: ../kubernetes/README.md
+       - Monitoring: ../kubernetes/monitoring/README.md
+
   EOT
 }

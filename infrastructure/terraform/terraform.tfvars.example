@@ -1,0 +1,82 @@
+# ============================================================
+# E-Commerce Microservices - Terraform Variables
+# ============================================================
+# Copy this file to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars to version control!
+# ============================================================
+
+# ============================================================
+# Digital Ocean Configuration
+# ============================================================
+
+# Get your token from: https://cloud.digitalocean.com/account/api/tokens
+do_token = "dop_v1_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Project settings
+project_name = "ecommerce-microservices"
+environment  = "prod"
+
+# ============================================================
+# Kubernetes Cluster Configuration
+# ============================================================
+
+# Region: nyc1, nyc3, sfo3, sgp1, lon1, fra1, tor1
+cluster_region = "nyc1"
+
+# Kubernetes version (check available versions with: doctl kubernetes options versions)
+cluster_version = "1.28.2-do.0"
+
+# Node pool configuration
+# Options:
+# s-2vcpu-4gb   - 4GB RAM, 2 vCPUs - $24/month (need 5+ nodes for 20GB = $120+/month)
+# s-4vcpu-8gb   - 8GB RAM, 4 vCPUs - $48/month (need 3 nodes for 24GB = $144/month) ✓ RECOMMENDED
+# s-6vcpu-16gb  - 16GB RAM, 6 vCPUs - $96/month (need 2 nodes for 32GB = $192/month)
+node_pool_size = "s-4vcpu-8gb"
+
+# Number of nodes (3 nodes x 8GB = 24GB total RAM)
+node_pool_count = 3
+
+# Auto-scaling configuration
+node_pool_auto_scale = true
+node_pool_min_nodes  = 3
+node_pool_max_nodes  = 6
+
+# ============================================================
+# Networking Configuration
+# ============================================================
+
+# Enable NGINX Ingress Controller
+enable_ingress_nginx = true
+
+# Enable cert-manager for automatic SSL certificates
+enable_cert_manager = true
+
+# Email for Let's Encrypt SSL certificates (required if cert-manager is enabled)
+letsencrypt_email = "your-email@example.com"
+
+# Domain name (optional - for DNS configuration)
+domain_name = "yourdomain.com"
+
+# ============================================================
+# Monitoring Configuration
+# ============================================================
+
+# Enable Prometheus and Grafana monitoring stack
+enable_monitoring = true
+
+# ============================================================
+# Tags and Labels
+# ============================================================
+
+tags = [
+  "ecommerce",
+  "kubernetes",
+  "terraform",
+  "prod"
+]
+
+labels = {
+  "managed-by" = "terraform"
+  "project"    = "ecommerce-microservices"
+  "team"       = "devops"
+}

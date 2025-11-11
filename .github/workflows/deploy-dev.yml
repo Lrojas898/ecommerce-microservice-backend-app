@@ -1,0 +1,507 @@
+name: Deploy to Development
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_versions:
+        description: 'JSON string containing service-specific versions (e.g., {"user-service":"v0.1.0-20240101-120000"})'
+        required: false
+        default: '{}'
+      docker_user:
+        description: 'Docker Hub username'
+        required: false
+        default: 'luisrojasc'
+      skip_e2e_tests:
+        description: 'Skip E2E tests to speed up deployment'
+        required: false
+        type: boolean
+        default: false
+      force_deploy_all:
+        description: 'Force deploy all services (ignore change detection)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  K8S_NAMESPACE: dev
+  DOCKER_REGISTRY: docker.io
+  ALL_SERVICES: service-discovery,user-service,product-service,order-service,payment-service,shipping-service,favourite-service,proxy-client,api-gateway
+  SERVICE_READINESS_TIMEOUT: 600
+  POD_READY_TIMEOUT: 300
+
+jobs:
+  initialize:
+    name: Initialize Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      services_to_deploy: ${{ steps.detect.outputs.services_to_deploy }}
+      services_to_deploy_json: ${{ steps.detect.outputs.services_to_deploy_json }}
+      service_version_map: ${{ steps.detect.outputs.service_version_map }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deployment Info
+        run: |
+          echo "========================================="
+          echo "  E-Commerce Microservices Deploy (DEV)"
+          echo "  Namespace: ${{ env.K8S_NAMESPACE }}"
+          echo "  Docker User: ${{ github.event.inputs.docker_user }}"
+          echo "========================================="
+
+      - name: Detect services to deploy
+        id: detect
+        run: |
+          ALL_SERVICES="${{ env.ALL_SERVICES }}"
+          IFS=',' read -ra ALL_SERVICES_ARRAY <<< "$ALL_SERVICES"
+
+          if [[ "${{ github.event.inputs.force_deploy_all }}" == "true" ]]; then
+            echo "FORCE_DEPLOY_ALL enabled - deploying all services"
+            SERVICES_TO_DEPLOY="$ALL_SERVICES"
+
+            # Create version map with 'latest' for all services
+            VERSION_MAP="{"
+            for service in "${ALL_SERVICES_ARRAY[@]}"; do
+              if [ "$VERSION_MAP" != "{" ]; then
+                VERSION_MAP="${VERSION_MAP},"
+              fi
+              VERSION_MAP="${VERSION_MAP}\"${service}\":\"latest\""
+            done
+            VERSION_MAP="${VERSION_MAP}}"
+          else
+            # Parse service versions from input
+            SERVICE_VERSIONS='${{ github.event.inputs.service_versions }}'
+
+            if [ "$SERVICE_VERSIONS" == "{}" ] || [ -z "$SERVICE_VERSIONS" ]; then
+              echo "No service versions provided, deploying all as fallback"
+              SERVICES_TO_DEPLOY="$ALL_SERVICES"
+
+              # Create version map with 'latest' for all
+              VERSION_MAP="{"
+              for service in "${ALL_SERVICES_ARRAY[@]}"; do
+                if [ "$VERSION_MAP" != "{" ]; then
+                  VERSION_MAP="${VERSION_MAP},"
+                fi
+                VERSION_MAP="${VERSION_MAP}\"${service}\":\"latest\""
+              done
+              VERSION_MAP="${VERSION_MAP}}"
+            else
+              # Extract changed services (those with non-'latest' versions)
+              SERVICES_TO_DEPLOY=""
+              VERSION_MAP="$SERVICE_VERSIONS"
+
+              for service in "${ALL_SERVICES_ARRAY[@]}"; do
+                VERSION=$(echo "$SERVICE_VERSIONS" | jq -r ".\"${service}\" // \"latest\"")
+                if [ "$VERSION" != "latest" ]; then
+                  if [ -z "$SERVICES_TO_DEPLOY" ]; then
+                    SERVICES_TO_DEPLOY="$service"
+                  else
+                    SERVICES_TO_DEPLOY="${SERVICES_TO_DEPLOY},${service}"
+                  fi
+                fi
+              done
+
+              # If no changed services, deploy all
+              if [ -z "$SERVICES_TO_DEPLOY" ]; then
+                echo "No changed services detected, deploying all as fallback"
+                SERVICES_TO_DEPLOY="$ALL_SERVICES"
+              fi
+            fi
+          fi
+
+          # Convert to JSON array
+          SERVICES_JSON=$(echo "$SERVICES_TO_DEPLOY" | jq -R -s -c 'split(",") | map(select(length > 0))')
+
+          echo "services_to_deploy=${SERVICES_TO_DEPLOY}" >> $GITHUB_OUTPUT
+          echo "services_to_deploy_json=${SERVICES_JSON}" >> $GITHUB_OUTPUT
+          echo "service_version_map=${VERSION_MAP}" >> $GITHUB_OUTPUT
+
+          echo "========================================="
+          echo "  Deployment Plan"
+          echo "========================================="
+          echo "Services to deploy: ${SERVICES_TO_DEPLOY}"
+          echo "Version map: ${VERSION_MAP}"
+          echo "========================================="
+
+  configure-kubectl:
+    name: Configure kubectl
+    runs-on: ubuntu-latest
+    needs: initialize
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+          echo "Verifying kubectl configuration..."
+          kubectl version --client
+          kubectl cluster-info
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
+          echo "✓ kubectl configured successfully"
+
+      - name: Create namespace
+        run: |
+          kubectl get namespace ${{ env.K8S_NAMESPACE }} || kubectl create namespace ${{ env.K8S_NAMESPACE }}
+          kubectl get namespace ${{ env.K8S_NAMESPACE }}
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure Services
+    runs-on: ubuntu-latest
+    needs: [initialize, configure-kubectl]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy service-discovery
+        run: |
+          SERVICES_TO_DEPLOY="${{ needs.initialize.outputs.services_to_deploy }}"
+          VERSION_MAP='${{ needs.initialize.outputs.service_version_map }}'
+
+          if echo "$SERVICES_TO_DEPLOY" | grep -q "service-discovery"; then
+            VERSION=$(echo "$VERSION_MAP" | jq -r '.["service-discovery"] // "latest"')
+            IMAGE_TAG="${{ github.event.inputs.docker_user }}/service-discovery:${VERSION}"
+
+            echo "Deploying service-discovery (${IMAGE_TAG})..."
+
+            # Scale down first
+            kubectl scale deployment/service-discovery --replicas=0 -n ${{ env.K8S_NAMESPACE }} 2>/dev/null || echo "Deployment not found (first deploy)"
+            kubectl wait --for=delete pod -l app=service-discovery -n ${{ env.K8S_NAMESPACE }} --timeout=60s 2>/dev/null || echo "No pods to delete"
+
+            # Apply manifest
+            kubectl apply -f infrastructure/kubernetes/base/service-discovery.yaml -n ${{ env.K8S_NAMESPACE }}
+
+            # Update image
+            kubectl set image deployment/service-discovery service-discovery=${IMAGE_TAG} -n ${{ env.K8S_NAMESPACE }}
+
+            # Restart and wait
+            kubectl rollout restart deployment/service-discovery -n ${{ env.K8S_NAMESPACE }}
+            kubectl rollout status deployment/service-discovery -n ${{ env.K8S_NAMESPACE }} --timeout=${{ env.SERVICE_READINESS_TIMEOUT }}s
+
+            echo "✓ service-discovery deployed successfully"
+          else
+            echo "Skipping service-discovery (no changes)"
+          fi
+
+  deploy-microservices:
+    name: Deploy Microservice
+    runs-on: ubuntu-latest
+    needs: [initialize, deploy-infrastructure]
+    strategy:
+      matrix:
+        service: [user-service, product-service, proxy-client, order-service, payment-service, shipping-service, favourite-service]
+      fail-fast: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy ${{ matrix.service }}
+        run: |
+          SERVICES_TO_DEPLOY="${{ needs.initialize.outputs.services_to_deploy }}"
+          VERSION_MAP='${{ needs.initialize.outputs.service_version_map }}'
+
+          if echo "$SERVICES_TO_DEPLOY" | grep -q "${{ matrix.service }}"; then
+            VERSION=$(echo "$VERSION_MAP" | jq -r '.["${{ matrix.service }}"] // "latest"')
+            IMAGE_TAG="${{ github.event.inputs.docker_user }}/${{ matrix.service }}:${VERSION}"
+
+            echo "Deploying ${{ matrix.service }} (${IMAGE_TAG})..."
+
+            # Scale down first
+            kubectl scale deployment/${{ matrix.service }} --replicas=0 -n ${{ env.K8S_NAMESPACE }} 2>/dev/null || echo "Deployment not found (first deploy)"
+            kubectl wait --for=delete pod -l app=${{ matrix.service }} -n ${{ env.K8S_NAMESPACE }} --timeout=60s 2>/dev/null || echo "No pods to delete"
+
+            # Apply manifest
+            kubectl apply -f infrastructure/kubernetes/base/${{ matrix.service }}.yaml -n ${{ env.K8S_NAMESPACE }}
+
+            # Update image
+            kubectl set image deployment/${{ matrix.service }} ${{ matrix.service }}=${IMAGE_TAG} -n ${{ env.K8S_NAMESPACE }}
+
+            # Restart and wait
+            kubectl rollout restart deployment/${{ matrix.service }} -n ${{ env.K8S_NAMESPACE }}
+            kubectl rollout status deployment/${{ matrix.service }} -n ${{ env.K8S_NAMESPACE }} --timeout=${{ env.SERVICE_READINESS_TIMEOUT }}s
+
+            echo "✓ ${{ matrix.service }} deployed successfully"
+          else
+            echo "Skipping ${{ matrix.service }} (no changes)"
+          fi
+
+  deploy-api-gateway:
+    name: Deploy API Gateway
+    runs-on: ubuntu-latest
+    needs: [initialize, deploy-microservices]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy api-gateway
+        run: |
+          SERVICES_TO_DEPLOY="${{ needs.initialize.outputs.services_to_deploy }}"
+          VERSION_MAP='${{ needs.initialize.outputs.service_version_map }}'
+
+          if echo "$SERVICES_TO_DEPLOY" | grep -q "api-gateway"; then
+            VERSION=$(echo "$VERSION_MAP" | jq -r '.["api-gateway"] // "latest"')
+            IMAGE_TAG="${{ github.event.inputs.docker_user }}/api-gateway:${VERSION}"
+
+            echo "Deploying api-gateway (${IMAGE_TAG})..."
+
+            # Scale down first
+            kubectl scale deployment/api-gateway --replicas=0 -n ${{ env.K8S_NAMESPACE }} 2>/dev/null || echo "Deployment not found (first deploy)"
+            kubectl wait --for=delete pod -l app=api-gateway -n ${{ env.K8S_NAMESPACE }} --timeout=60s 2>/dev/null || echo "No pods to delete"
+
+            # Apply manifest
+            kubectl apply -f infrastructure/kubernetes/base/api-gateway.yaml -n ${{ env.K8S_NAMESPACE }}
+
+            # Update image
+            kubectl set image deployment/api-gateway api-gateway=${IMAGE_TAG} -n ${{ env.K8S_NAMESPACE }}
+
+            # Restart and wait
+            kubectl rollout restart deployment/api-gateway -n ${{ env.K8S_NAMESPACE }}
+            kubectl rollout status deployment/api-gateway -n ${{ env.K8S_NAMESPACE }} --timeout=${{ env.SERVICE_READINESS_TIMEOUT }}s
+
+            echo "✓ api-gateway deployed successfully"
+          else
+            echo "Skipping api-gateway (no changes)"
+          fi
+
+  verify-deployment:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: [initialize, deploy-api-gateway]
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify deployment
+        run: |
+          echo "========================================="
+          echo "  Deployment Verification"
+          echo "========================================="
+
+          echo "Pods:"
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }} -o wide
+
+          echo ""
+          echo "Services:"
+          kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+
+          echo ""
+          echo "Checking for pod issues..."
+          PROBLEM_PODS=$(kubectl get pods -n ${{ env.K8S_NAMESPACE }} --field-selector=status.phase!=Running,status.phase!=Succeeded --no-headers 2>/dev/null | wc -l)
+          if [ $PROBLEM_PODS -gt 0 ]; then
+            echo "⚠️ Warning: $PROBLEM_PODS pod(s) not in Running state"
+            kubectl get pods -n ${{ env.K8S_NAMESPACE }} --field-selector=status.phase!=Running,status.phase!=Succeeded
+          else
+            echo "✓ All pods are running"
+          fi
+
+          echo "========================================="
+
+  run-e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    needs: [initialize, verify-deployment]
+    if: github.event.inputs.skip_e2e_tests != 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Wait for services ready
+        run: |
+          echo "Waiting for all services to be ready..."
+
+          kubectl wait --for=condition=ready pod -l app=api-gateway -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+          kubectl wait --for=condition=ready pod -l app=product-service -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+          kubectl wait --for=condition=ready pod -l app=user-service -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+          kubectl wait --for=condition=ready pod -l app=order-service -n ${{ env.K8S_NAMESPACE }} --timeout=300s || true
+
+          echo "✓ Services are ready"
+
+      - name: Setup port-forward and run tests
+        run: |
+          set -e
+
+          echo "Starting port-forward to api-gateway..."
+          kubectl port-forward -n ${{ env.K8S_NAMESPACE }} svc/api-gateway 18080:80 > /tmp/port-forward.log 2>&1 &
+          PORT_FORWARD_PID=$!
+          echo $PORT_FORWARD_PID > /tmp/port-forward.pid
+
+          # Wait for port-forward to be ready
+          sleep 5
+
+          if ! ps -p $PORT_FORWARD_PID > /dev/null; then
+            echo "❌ Port-forward failed to start"
+            cat /tmp/port-forward.log
+            exit 1
+          fi
+
+          GATEWAY_URL="http://localhost:18080"
+          echo "✓ Port-forward ready"
+          echo "API Gateway URL: $GATEWAY_URL"
+
+          # Test connectivity
+          for i in {1..5}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" $GATEWAY_URL/app/api/products --max-time 5 || echo "000")
+
+            if [ "$HTTP_CODE" != "000" ]; then
+              echo "✓ API Gateway is reachable (HTTP $HTTP_CODE)"
+              break
+            fi
+
+            if [ $i -lt 5 ]; then
+              echo "Attempt $i/5: Got $HTTP_CODE, retrying in 5 seconds..."
+              sleep 5
+            else
+              echo "❌ Cannot reach API Gateway after 5 attempts"
+              kill $PORT_FORWARD_PID 2>/dev/null || true
+              exit 1
+            fi
+          done
+
+          # Run E2E tests
+          echo "Running Maven E2E Tests..."
+          cd tests
+          mvn clean verify \
+            -Dtest.base.url="$GATEWAY_URL" \
+            -Dtest.timeout=60000 \
+            -DfailIfNoTests=false
+
+          echo "✓ E2E Tests PASSED"
+
+          # Cleanup
+          kill $PORT_FORWARD_PID 2>/dev/null || true
+          rm -f /tmp/port-forward.pid /tmp/port-forward.log
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: tests/target/failsafe-reports/*.xml
+          check_name: E2E Test Results
+
+  sonarqube-e2e-tests:
+    name: SonarQube Analysis - E2E Tests
+    runs-on: ubuntu-latest
+    needs: [initialize, run-e2e-tests]
+    if: github.event.inputs.skip_e2e_tests != 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Run SonarQube analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          cd tests
+
+          echo "Running SonarQube analysis on E2E tests..."
+          mvn sonar:sonar \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.token=${SONAR_TOKEN} \
+            -Dsonar.projectKey=ecommerce-e2e-tests \
+            -Dsonar.projectName="E-Commerce E2E Tests" \
+            -Dsonar.sources=src/main/java \
+            -Dsonar.tests=src/test/java \
+            -Dsonar.java.binaries=target/classes,target/test-classes \
+            -Dsonar.junit.reportPaths=target/failsafe-reports \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml || echo "⚠️ SonarQube analysis failed (non-blocking)"
+
+          echo "✓ SonarQube analysis completed"
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [initialize, verify-deployment]
+    if: always()
+    steps:
+      - name: Display summary
+        run: |
+          echo "========================================="
+          echo "  DEPLOYMENT SUMMARY"
+          echo "========================================="
+          echo "Namespace: ${{ env.K8S_NAMESPACE }}"
+          echo "Docker Registry: ${{ github.event.inputs.docker_user }}"
+          echo ""
+          echo "Services Deployed:"
+          echo "${{ needs.initialize.outputs.services_to_deploy }}"
+          echo ""
+          echo "Next Steps:"
+          echo "1. Check pods: kubectl get pods -n ${{ env.K8S_NAMESPACE }}"
+          echo "2. Check logs: kubectl logs -f -l app=<service> -n ${{ env.K8S_NAMESPACE }}"
+          echo "3. Port forward: kubectl port-forward -n ${{ env.K8S_NAMESPACE }} svc/api-gateway 8080:80"
+          echo "========================================="

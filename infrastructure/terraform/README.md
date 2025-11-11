@@ -1,201 +1,487 @@
-# Terraform Infrastructure for Ecommerce Microservices
+# E-Commerce Microservices - Terraform Infrastructure
 
-Este directorio contiene la configuración de Terraform para desplegar toda la infraestructura necesaria en AWS para el **Taller 2: Pruebas y Lanzamiento**.
+Infrastructure as Code (IaC) for deploying the E-Commerce microservices platform on Digital Ocean Kubernetes.
 
-## Componentes
+## 📋 **Table of Contents**
 
-- **ECR Repositories**: 9 repositorios para los microservicios e infraestructura
-  - service-discovery, cloud-config, api-gateway
-  - user-service, product-service, order-service, payment-service, shipping-service, favourite-service
-- **Jenkins Server**: EC2 instance (m7i-flex.large) con Jenkins, Docker, AWS CLI, kubectl, Maven
-- **SonarQube Server**: EC2 instance (t3.small) para análisis de calidad de código
-- **EKS Cluster**: Kubernetes cluster v1.28 con node group configurable (1-4 nodes t3.small)
-- **IAM Roles**: Roles necesarios para Jenkins, EKS cluster y EKS nodes
-- **Security Groups**: Firewall rules para Jenkins y SonarQube
-- **Elastic IPs**: IPs públicas fijas para Jenkins y SonarQube
+1. [Overview](#overview)
+2. [Prerequisites](#prerequisites)
+3. [Quick Start](#quick-start)
+4. [Configuration](#configuration)
+5. [Usage](#usage)
+6. [Modules](#modules)
+7. [Outputs](#outputs)
+8. [Cost Estimation](#cost-estimation)
+9. [Troubleshooting](#troubleshooting)
 
-## Requisitos Previos
+---
 
-1. AWS CLI configurado
-2. Terraform instalado (v1.0+)
-3. Credenciales AWS con permisos suficientes
+## 🏗️ **Overview**
 
-## Despliegue
+This Terraform configuration provisions:
+
+- **Digital Ocean Kubernetes Cluster (DOKS)** with 3 nodes (24GB total RAM)
+- **NGINX Ingress Controller** for routing external traffic
+- **cert-manager** for automatic SSL certificate management
+- **Kubernetes Namespaces**: prod, staging, tracing, monitoring
+- **Storage Classes** for persistent volumes
+- **Auto-scaling** for node pools
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              Digital Ocean Cloud                         │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │       Kubernetes Cluster (DOKS)                    │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐        │ │
+│  │  │  Node 1  │  │  Node 2  │  │  Node 3  │        │ │
+│  │  │  8GB RAM │  │  8GB RAM │  │  8GB RAM │        │ │
+│  │  │  4 vCPUs │  │  4 vCPUs │  │  4 vCPUs │        │ │
+│  │  └──────────┘  └──────────┘  └──────────┘        │ │
+│  │                                                    │ │
+│  │  ┌────────────────────────────────────────────┐  │ │
+│  │  │          NGINX Ingress Controller          │  │ │
+│  │  │      (LoadBalancer: $12/month)             │  │ │
+│  │  └────────────────────────────────────────────┘  │ │
+│  │                                                    │ │
+│  │  Namespaces:                                      │ │
+│  │  • prod       → Production services               │ │
+│  │  • staging    → Staging environment               │ │
+│  │  • tracing    → Jaeger distributed tracing        │ │
+│  │  • monitoring → Prometheus + Grafana              │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ✅ **Prerequisites**
+
+### 1. Install Required Tools
 
 ```bash
-# 1. Ir al directorio de terraform
+# Terraform (>= 1.5.0)
+brew install terraform  # macOS
+# Or download from: https://www.terraform.io/downloads
+
+# Digital Ocean CLI (doctl)
+brew install doctl  # macOS
+# Or download from: https://docs.digitalocean.com/reference/doctl/how-to/install/
+
+# kubectl
+brew install kubectl  # macOS
+```
+
+### 2. Digital Ocean Account
+
+1. Create a Digital Ocean account: https://www.digitalocean.com/
+2. Generate an API token:
+   - Go to: https://cloud.digitalocean.com/account/api/tokens
+   - Click "Generate New Token"
+   - Name: `terraform-ecommerce`
+   - Scopes: Read + Write
+   - Copy the token (you won't see it again!)
+
+### 3. Authenticate doctl
+
+```bash
+doctl auth init
+# Paste your API token when prompted
+
+# Verify authentication
+doctl account get
+```
+
+---
+
+## 🚀 **Quick Start**
+
+### Step 1: Clone and Navigate
+
+```bash
 cd infrastructure/terraform
+```
 
-# 2. Inicializar Terraform
+### Step 2: Configure Variables
+
+```bash
+# Copy the example file
+cp terraform.tfvars.example terraform.tfvars
+
+# Edit with your values
+vi terraform.tfvars
+```
+
+**Minimum required variables:**
+```hcl
+do_token          = "dop_v1_your_token_here"
+letsencrypt_email = "your-email@example.com"
+```
+
+### Step 3: Initialize Terraform
+
+```bash
 terraform init
+```
 
-# 3. Ver el plan de ejecución
+This will:
+- Download required providers (Digital Ocean, Kubernetes, Helm)
+- Initialize the backend
+- Prepare modules
+
+### Step 4: Plan the Infrastructure
+
+```bash
 terraform plan
+```
 
-# 4. Aplicar cambios
+Review the resources that will be created:
+- 1 Kubernetes cluster
+- 3 worker nodes
+- 4 namespaces
+- 1 LoadBalancer
+- NGINX Ingress Controller
+- cert-manager
+- ClusterIssuers for SSL
+
+### Step 5: Apply the Configuration
+
+```bash
 terraform apply
 
-# 5. Guardar los outputs
-terraform output > outputs.txt
+# Review the plan
+# Type 'yes' to confirm
 ```
 
-## Después del Despliegue
+⏱️ **This will take 5-10 minutes** to provision the cluster.
 
-### 1. Ver toda la información de la infraestructura
-
-```bash
-# Ver resumen completo con todos los outputs
-terraform output next_steps
-
-# O ver outputs individuales
-terraform output jenkins_url
-terraform output sonarqube_url
-terraform output eks_cluster_name
-```
-
-### 2. Acceder a Jenkins
+### Step 6: Configure kubectl
 
 ```bash
-# Obtener la URL de Jenkins
-terraform output jenkins_url
+# Option A: Using doctl (recommended)
+doctl kubernetes cluster kubeconfig save $(terraform output -raw cluster_name)
 
-# Obtener la contraseña inicial
-terraform output -raw get_jenkins_password
-```
+# Option B: Using Terraform output
+terraform output -raw kubeconfig > ~/.kube/config-ecommerce
+export KUBECONFIG=~/.kube/config-ecommerce
 
-### 3. Acceder a SonarQube
-
-```bash
-# Obtener la URL de SonarQube
-terraform output sonarqube_url
-
-# Credenciales por defecto: admin / admin (cambiar en primer login)
-```
-
-### 4. Configurar kubectl
-
-```bash
-# Configurar kubectl para conectarse a EKS
-terraform output -raw eks_kubectl_config
-
-# O ejecutar directamente:
-aws eks update-kubeconfig --region us-east-1 --name ecommerce-microservices-cluster
-
-# Verificar conexión
+# Verify access
+kubectl cluster-info
 kubectl get nodes
-
-# Verificar namespaces (deben existir: dev, staging, production)
 kubectl get namespaces
 ```
 
-### 5. Configurar Jenkins
-
-1. Acceder a Jenkins UI (http://JENKINS_IP:8080)
-2. Usar contraseña inicial obtenida en paso 2
-3. Instalar plugins recomendados:
-   - Docker Pipeline
-   - Kubernetes CLI
-   - AWS Steps
-   - Pipeline
-   - Git
-4. Crear usuario admin personalizado
-5. Configurar credenciales:
-   - AWS credentials (Access Key ID + Secret Access Key)
-   - GitHub credentials (si usas repo privado)
-   - Configurar kubectl access a EKS
-
-### 6. Crear Pipelines en Jenkins
+### Step 7: Get LoadBalancer IP
 
 ```bash
-# Los Jenkinsfiles están en:
-infrastructure/jenkins/Jenkinsfile.dev      # Build y push a ECR
-infrastructure/jenkins/Jenkinsfile.stage    # Deploy + Tests en Staging
-infrastructure/jenkins/Jenkinsfile.prod     # Deploy a Production con Release Notes
+# Get the IP for DNS configuration
+terraform output loadbalancer_ip
+
+# Example output: 64.225.123.45
 ```
 
-## Destruir Infraestructura
+### Step 8: Configure DNS (Optional but Recommended)
 
-⚠️ **IMPORTANTE**: Esto eliminará TODOS los recursos
+If you have a domain, create A records pointing to the LoadBalancer IP:
+
+```
+api.yourdomain.com     → 64.225.123.45
+jaeger.yourdomain.com  → 64.225.123.45
+grafana.yourdomain.com → 64.225.123.45
+```
+
+### Step 9: Deploy Applications
 
 ```bash
+# Navigate to Kubernetes configs
+cd ../kubernetes
+
+# Deploy to prod namespace
+kubectl apply -f base/ -n prod
+
+# Deploy tracing
+kubectl apply -f tracing/
+
+# Deploy monitoring
+cd monitoring
+./deploy-monitoring.sh
+```
+
+---
+
+## ⚙️ **Configuration**
+
+### terraform.tfvars
+
+Key variables to customize:
+
+```hcl
+# Cluster configuration
+cluster_region  = "nyc1"           # Region closest to you
+node_pool_size  = "s-4vcpu-8gb"    # Node size (8GB RAM)
+node_pool_count = 3                # Number of nodes (24GB total)
+
+# Auto-scaling
+node_pool_auto_scale = true
+node_pool_min_nodes  = 3           # Minimum nodes
+node_pool_max_nodes  = 6           # Maximum nodes
+
+# SSL configuration
+enable_cert_manager  = true
+letsencrypt_email    = "you@example.com"
+
+# Ingress
+enable_ingress_nginx = true
+```
+
+### Node Size Options
+
+| Size | RAM | vCPUs | Price/month | Nodes for 20GB+ | Total Cost |
+|------|-----|-------|-------------|-----------------|------------|
+| `s-2vcpu-4gb` | 4GB | 2 | $24 | 5 | $120 |
+| `s-4vcpu-8gb` | 8GB | 4 | $48 | 3 | $144 | ✓ **Recommended** |
+| `s-6vcpu-16gb` | 16GB | 6 | $96 | 2 | $192 |
+
+---
+
+## 📚 **Modules**
+
+### 1. Kubernetes Module
+
+Located in: `modules/kubernetes/`
+
+Creates:
+- Digital Ocean Kubernetes cluster
+- Node pools with auto-scaling
+- Kubernetes namespaces (prod, staging, tracing, monitoring)
+- Storage classes
+- Container registry (optional)
+
+### 2. Networking Module
+
+Located in: `modules/networking/`
+
+Creates:
+- NGINX Ingress Controller (via Helm)
+- cert-manager (via Helm)
+- ClusterIssuers for Let's Encrypt (prod & staging)
+- LoadBalancer service
+
+### 3. Monitoring Module (Future)
+
+Located in: `modules/monitoring/`
+
+Will create:
+- Prometheus deployment
+- Grafana deployment
+- AlertManager
+- Pre-configured dashboards
+
+---
+
+## 📤 **Outputs**
+
+### View All Outputs
+
+```bash
+terraform output
+```
+
+### Important Outputs
+
+```bash
+# Cluster information
+terraform output cluster_name
+terraform output cluster_region
+
+# LoadBalancer IP for DNS
+terraform output loadbalancer_ip
+
+# Get kubeconfig
+terraform output -raw kubeconfig > kubeconfig.yaml
+
+# Infrastructure summary
+terraform output infrastructure_summary
+
+# Next steps guide
+terraform output next_steps
+```
+
+---
+
+## 💰 **Cost Estimation**
+
+### Monthly Costs (Production)
+
+| Resource | Quantity | Unit Price | Total |
+|----------|----------|------------|-------|
+| Worker Nodes (s-4vcpu-8gb) | 3 | $48/month | $144 |
+| LoadBalancer | 1 | $12/month | $12 |
+| Block Storage (100GB) | 1 | $10/month | $10 |
+| **Total** | | | **~$166/month** |
+
+### Cost Optimization Tips
+
+1. **Use Smaller Nodes for Dev**:
+   ```hcl
+   node_pool_size = "s-2vcpu-4gb"  # $24/month per node
+   node_pool_count = 2              # $48 total for dev
+   ```
+
+2. **Enable Auto-Scaling**:
+   - Scale down during off-hours
+   - Only scale up when needed
+
+3. **Use Staging Environment**:
+   - Keep prod cluster always on
+   - Deploy staging cluster only when needed
+   - Destroy after testing
+
+4. **Monitor Resource Usage**:
+   ```bash
+   kubectl top nodes
+   kubectl top pods -n prod
+   ```
+
+---
+
+## 🛠️ **Common Operations**
+
+### Scaling Nodes
+
+```hcl
+# Edit terraform.tfvars
+node_pool_count = 5  # Scale up to 5 nodes
+
+# Apply changes
+terraform apply
+```
+
+### Upgrading Kubernetes Version
+
+```bash
+# Check available versions
+doctl kubernetes options versions
+
+# Update terraform.tfvars
+cluster_version = "1.29.0-do.0"
+
+# Apply upgrade
+terraform apply
+```
+
+### Adding a New Node Pool
+
+```hcl
+# In main.tf, add to kubernetes_cluster resource
+node_pool {
+  name       = "memory-intensive-pool"
+  size       = "s-8vcpu-16gb"
+  node_count = 2
+  tags       = ["memory-intensive"]
+}
+```
+
+### Destroying Infrastructure
+
+```bash
+# ⚠️ WARNING: This will delete everything!
 terraform destroy
+
+# To be safe, review first
+terraform plan -destroy
 ```
 
-## Costos Estimados (US East 1)
+---
 
-- Jenkins EC2 (m7i-flex.large): ~$0.17/hora = ~$123/mes
-- SonarQube EC2 (t3.small): ~$0.0208/hora = ~$15/mes
-- EKS Control Plane: $0.10/hora = ~$72/mes
-- EKS Nodes (2x t3.small): ~$0.0416/hora = ~$30/mes
-- ECR Storage: ~$0.10/GB/mes (minimal para imágenes)
-- **Total**: ~$240/mes
+## 🐛 **Troubleshooting**
 
-### Tips para Reducir Costos:
+### Issue: `Error: API rate limit exceeded`
 
+**Solution**: Wait a few minutes and try again. Digital Ocean has API rate limits.
+
+### Issue: `Cluster creation timeout`
+
+**Solution**: Increase timeout in `modules/kubernetes/main.tf`:
+```hcl
+timeouts {
+  create = "30m"
+}
+```
+
+### Issue: `LoadBalancer stuck in pending`
+
+**Check**:
 ```bash
-# Escalar node group a 0 cuando no uses el cluster
-kubectl scale deployment --all --replicas=0 -n dev
-kubectl scale deployment --all --replicas=0 -n staging
-kubectl scale deployment --all --replicas=0 -n production
-
-# O reducir el node group completamente (requiere acceso AWS)
-aws eks update-nodegroup-config \
-  --cluster-name ecommerce-microservices-cluster \
-  --nodegroup-name standard-workers \
-  --scaling-config minSize=0,maxSize=4,desiredSize=0
-
-# Detener instancias EC2 cuando no uses (no eliminar)
-aws ec2 stop-instances --instance-ids <jenkins-instance-id> <sonarqube-instance-id>
+kubectl get svc -n ingress-nginx
+kubectl describe svc ingress-nginx-controller -n ingress-nginx
 ```
 
-## Estructura de Archivos
+**Solution**: Wait 2-5 minutes. If still pending, check Digital Ocean dashboard for LoadBalancer status.
 
-```
-terraform/
-├── provider.tf           # AWS provider configuration
-├── variables.tf          # Variables globales
-├── main.tf              # Módulos principales (ECR, Jenkins, SonarQube, EKS)
-├── outputs.tf           # Outputs de todos los módulos
-├── terraform.tfvars     # Valores de variables (editable)
-├── ecr/
-│   ├── main.tf          # 9 ECR repositories
-│   ├── outputs.tf       # URLs y comandos ECR
-│   └── variables.tf     # Variables ECR
-├── jenkins/
-│   ├── main.tf          # Jenkins EC2 + Security Group
-│   ├── outputs.tf       # Jenkins URL, IP, SSH
-│   ├── variables.tf     # Variables Jenkins
-│   └── user-data.sh     # Script instalación Jenkins
-├── sonarqube/
-│   ├── main.tf          # SonarQube EC2 + Security Group
-│   ├── outputs.tf       # SonarQube URL, IP, credenciales
-│   └── variables.tf     # Variables SonarQube
-└── eks/
-    ├── main.tf          # EKS cluster + node group + IAM roles
-    ├── outputs.tf       # EKS endpoint, kubectl config
-    └── variables.tf     # Variables EKS
-```
+### Issue: `cert-manager not creating certificates`
 
-## Troubleshooting
-
-### Error: "No valid credential sources found"
+**Check**:
 ```bash
-aws configure
+kubectl get certificaterequest -A
+kubectl get clusterissuer
+kubectl describe clusterissuer letsencrypt-prod
 ```
 
-### Error: "Insufficient permissions"
-Asegúrate de tener permisos para:
-- EC2 (crear instancias, security groups)
-- IAM (crear roles, policies)
-- EKS (crear clusters)
-- VPC (acceder a default VPC)
+**Solution**: Verify `letsencrypt_email` is set correctly and DNS is pointing to LoadBalancer IP.
 
-### Jenkins no inicia
+### Issue: `Terraform state locked`
+
+**Solution**:
 ```bash
-# SSH a la instancia
-ssh ec2-user@<jenkins-ip>
-
-# Ver logs
-sudo systemctl status jenkins
-sudo journalctl -u jenkins -f
+# Force unlock (use with caution!)
+terraform force-unlock <LOCK_ID>
 ```
+
+---
+
+## 📖 **Additional Resources**
+
+### Digital Ocean Documentation
+- [Kubernetes on DO](https://docs.digitalocean.com/products/kubernetes/)
+- [DOKS Pricing](https://www.digitalocean.com/pricing/kubernetes)
+- [doctl Reference](https://docs.digitalocean.com/reference/doctl/)
+
+### Terraform Documentation
+- [Digital Ocean Provider](https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs)
+- [Kubernetes Provider](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs)
+- [Helm Provider](https://registry.terraform.io/providers/hashicorp/helm/latest/docs)
+
+### Project Documentation
+- [Main README](../../README.md)
+- [Kubernetes Configs](../kubernetes/README.md)
+- [Monitoring Setup](../kubernetes/monitoring/README.md)
+
+---
+
+## 🤝 **Contributing**
+
+When modifying Terraform configs:
+
+1. **Always run `terraform fmt`** before committing
+2. **Never commit `terraform.tfvars`** (contains secrets)
+3. **Update this README** if adding new variables or modules
+4. **Test in a separate environment** before applying to prod
+
+---
+
+## 📝 **Notes**
+
+- **State Management**: Currently using local state. For team collaboration, configure remote state backend (S3, Terraform Cloud, etc.)
+- **Secrets**: API tokens are sensitive. Use environment variables or secret management tools in CI/CD.
+- **Backups**: Digital Ocean automatically backs up Kubernetes cluster state, but application data should have separate backup strategy.
+
+---
+
+**Created by**: DevOps Team
+**Last Updated**: November 2025
+**Terraform Version**: >= 1.5.0

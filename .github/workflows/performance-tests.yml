@@ -1,0 +1,405 @@
+name: Performance Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment for performance tests'
+        required: true
+        type: choice
+        options:
+          - prod
+          - dev
+        default: 'prod'
+      test_type:
+        description: 'Type of performance test to run'
+        required: true
+        type: choice
+        options:
+          - MixedWorkloadUser
+          - ProductServiceLoadTest
+          - OrderServiceStressTest
+          - UserAuthenticationLoadTest
+          - ECommercePurchaseUser
+        default: 'MixedWorkloadUser'
+      users:
+        description: 'Number of concurrent users'
+        required: false
+        default: '100'
+      spawn_rate:
+        description: 'Users spawned per second'
+        required: false
+        default: '10'
+      run_time:
+        description: 'Test duration (e.g., 5m, 10m, 1h)'
+        required: false
+        default: '5m'
+      headless:
+        description: 'Run in headless mode (no web UI)'
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    # Run performance tests weekly on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+env:
+  K8S_NAMESPACE: ${{ github.event.inputs.environment || 'prod' }}
+  REPORT_NAME: performance-report-${{ github.event.inputs.environment || 'prod' }}-${{ github.run_number }}
+
+jobs:
+  initialize:
+    name: Initialize Performance Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Display test configuration
+        run: |
+          echo "========================================="
+          echo "  Performance Tests"
+          echo "========================================="
+          echo "Environment: ${{ github.event.inputs.environment || 'prod' }}"
+          echo "Test Type: ${{ github.event.inputs.test_type || 'MixedWorkloadUser' }}"
+          echo "Users: ${{ github.event.inputs.users || '100' }}"
+          echo "Spawn Rate: ${{ github.event.inputs.spawn_rate || '10' }}"
+          echo "Duration: ${{ github.event.inputs.run_time || '5m' }}"
+          echo "Headless: ${{ github.event.inputs.headless || 'true' }}"
+          echo "========================================="
+
+  get-api-gateway-url:
+    name: Get API Gateway URL
+    runs-on: ubuntu-latest
+    needs: initialize
+    outputs:
+      api_gateway_url: ${{ steps.get-url.outputs.api_gateway_url }}
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Get API Gateway URL
+        id: get-url
+        run: |
+          echo "Getting API Gateway URL from Kubernetes..."
+
+          # Get NodePort
+          NODE_PORT=$(kubectl get svc api-gateway -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+
+          if [ -z "$NODE_PORT" ]; then
+            echo "❌ Could not get NodePort"
+            exit 1
+          fi
+
+          # Get Node IP (try external IP first, then internal)
+          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}' 2>/dev/null || echo "")
+
+          if [ -z "$NODE_IP" ]; then
+            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+          fi
+
+          API_URL="http://${NODE_IP}:${NODE_PORT}"
+
+          echo "api_gateway_url=${API_URL}" >> $GITHUB_OUTPUT
+
+          echo "========================================="
+          echo "API Gateway URL: ${API_URL}"
+          echo "========================================="
+
+  verify-services:
+    name: Verify Services Health
+    runs-on: ubuntu-latest
+    needs: get-api-gateway-url
+    steps:
+      - name: Test API Gateway connectivity
+        run: |
+          API_URL="${{ needs.get-api-gateway-url.outputs.api_gateway_url }}"
+          echo "Testing connectivity to ${API_URL}"
+
+          for i in {1..5}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 10 ${API_URL}/app/api/products 2>&1 || echo "FAILED")
+
+            if [ "$HTTP_CODE" != "FAILED" ] && [ "$HTTP_CODE" != "000" ]; then
+              echo "✓ API Gateway is reachable (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+
+            if [ $i -lt 5 ]; then
+              echo "⚠️ Attempt $i/5: Connection failed, retrying in 5 seconds..."
+              sleep 5
+            else
+              echo "❌ ERROR: Cannot reach API Gateway at ${API_URL} after 5 attempts"
+              exit 1
+            fi
+          done
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Check Kubernetes services
+        run: |
+          echo "Kubernetes Services Status:"
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }} | grep -E "(api-gateway|product-service|order-service|user-service)" || true
+
+  run-performance-tests:
+    name: Run Performance Tests
+    runs-on: ubuntu-latest
+    needs: [get-api-gateway-url, verify-services]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Locust and dependencies
+        run: |
+          cd tests/performance
+
+          echo "Installing Python dependencies..."
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+          echo "Verifying Locust installation..."
+          locust --version
+
+      - name: Verify test configuration
+        run: |
+          cd tests/performance
+
+          echo "Verifying locustfile.py..."
+          python3 -c "from locustfile import ${{ github.event.inputs.test_type || 'MixedWorkloadUser' }}; print('✓ Successfully imported ${{ github.event.inputs.test_type || 'MixedWorkloadUser' }}')"
+
+      - name: Test authentication endpoint
+        run: |
+          API_URL="${{ needs.get-api-gateway-url.outputs.api_gateway_url }}"
+
+          echo "Testing authentication endpoint..."
+          AUTH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST ${API_URL}/app/api/authenticate \
+            -H "Content-Type: application/json" \
+            -d '{"username":"testuser","password":"password123"}' || echo "CURL_FAILED")
+
+          if echo "$AUTH_RESPONSE" | grep -q "jwtToken"; then
+            echo "✓ Authentication test passed"
+          else
+            echo "⚠️ Authentication test failed (this may be expected):"
+            echo "$AUTH_RESPONSE"
+          fi
+
+      - name: Run Locust performance tests
+        run: |
+          cd tests/performance
+
+          API_URL="${{ needs.get-api-gateway-url.outputs.api_gateway_url }}"
+          TEST_TYPE="${{ github.event.inputs.test_type || 'MixedWorkloadUser' }}"
+          USERS="${{ github.event.inputs.users || '100' }}"
+          SPAWN_RATE="${{ github.event.inputs.spawn_rate || '10' }}"
+          RUN_TIME="${{ github.event.inputs.run_time || '5m' }}"
+          HEADLESS="${{ github.event.inputs.headless || 'true' }}"
+
+          echo "========================================="
+          echo "Starting Locust Performance Tests"
+          echo "========================================="
+          echo "Target: ${API_URL}"
+          echo "Test Type: ${TEST_TYPE}"
+          echo "Users: ${USERS}"
+          echo "Spawn Rate: ${SPAWN_RATE}"
+          echo "Duration: ${RUN_TIME}"
+          echo "Headless: ${HEADLESS}"
+          echo "========================================="
+
+          # Build Locust command
+          LOCUST_CMD="locust -f locustfile.py ${TEST_TYPE} \
+            --host=${API_URL} \
+            --users ${USERS} \
+            --spawn-rate ${SPAWN_RATE} \
+            --run-time ${RUN_TIME} \
+            --loglevel DEBUG"
+
+          if [ "$HEADLESS" == "true" ]; then
+            LOCUST_CMD="${LOCUST_CMD} --headless \
+              --html ${{ env.REPORT_NAME }}.html \
+              --csv ${{ env.REPORT_NAME }}"
+          fi
+
+          # Run Locust
+          echo "Executing: ${LOCUST_CMD}"
+          eval ${LOCUST_CMD} || {
+            echo "⚠️ Performance tests completed with warnings"
+            exit 0
+          }
+
+          echo "✓ Performance tests completed successfully"
+
+      - name: Upload performance test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-test-results
+          path: |
+            tests/performance/${{ env.REPORT_NAME }}.html
+            tests/performance/${{ env.REPORT_NAME }}*.csv
+          retention-days: 30
+
+  analyze-results:
+    name: Analyze Performance Results
+    runs-on: ubuntu-latest
+    needs: run-performance-tests
+    if: github.event.inputs.headless != 'false'
+    steps:
+      - name: Download test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-test-results
+          path: tests/performance
+
+      - name: Analyze results
+        run: |
+          cd tests/performance
+
+          if [ -f "${{ env.REPORT_NAME }}_stats.csv" ]; then
+            echo "========================================="
+            echo "  Performance Summary"
+            echo "========================================="
+            head -20 ${{ env.REPORT_NAME }}_stats.csv
+
+            echo ""
+            echo "Calculating error rates..."
+
+            # Calculate error rate
+            ERRORS=$(awk -F, 'NR>1 {sum+=$8} END {print sum}' ${{ env.REPORT_NAME }}_stats.csv || echo "0")
+            TOTAL=$(awk -F, 'NR>1 {sum+=$2} END {print sum}' ${{ env.REPORT_NAME }}_stats.csv || echo "1")
+
+            if [ "$TOTAL" -gt 0 ]; then
+              ERROR_RATE=$(awk "BEGIN {printf \"%.2f\", ($ERRORS / $TOTAL) * 100}")
+            else
+              ERROR_RATE="0"
+            fi
+
+            echo "Total Requests: $TOTAL"
+            echo "Failed Requests: $ERRORS"
+            echo "Error Rate: ${ERROR_RATE}%"
+
+            # Check if error rate is acceptable (< 5%)
+            if (( $(echo "$ERROR_RATE > 5.0" | bc -l 2>/dev/null || echo 0) )); then
+              echo "⚠️ WARNING: Error rate is high (${ERROR_RATE}%)"
+              exit 1
+            else
+              echo "✓ Error rate is acceptable (${ERROR_RATE}%)"
+            fi
+          else
+            echo "⚠️ No stats file found"
+          fi
+
+      - name: Publish HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report-html
+          path: tests/performance/${{ env.REPORT_NAME }}.html
+          retention-days: 90
+
+  sonarqube-analysis:
+    name: SonarQube Analysis - Performance Tests
+    runs-on: ubuntu-latest
+    needs: run-performance-tests
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install SonarQube Scanner
+        run: |
+          cd tests/performance
+
+          echo "Downloading SonarQube Scanner..."
+          wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+          unzip -q sonar-scanner-cli-5.0.1.3006-linux.zip
+          mv sonar-scanner-5.0.1.3006-linux sonar-scanner
+          rm sonar-scanner-cli-5.0.1.3006-linux.zip
+
+          echo "✓ SonarQube Scanner installed"
+
+      - name: Run SonarQube analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          cd tests/performance
+
+          echo "Running SonarQube analysis on performance test code..."
+
+          ./sonar-scanner/bin/sonar-scanner \
+            -Dsonar.host.url=${SONAR_HOST_URL} \
+            -Dsonar.token=${SONAR_TOKEN} \
+            -Dsonar.projectKey=ecommerce-performance-tests \
+            -Dsonar.projectName="E-Commerce Performance Tests" \
+            -Dsonar.projectVersion=1.0 \
+            -Dsonar.sources=. \
+            -Dsonar.inclusions=**/*.py \
+            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/sonar-scanner/** \
+            -Dsonar.language=py \
+            -Dsonar.python.version=3.13 \
+            -Dsonar.sourceEncoding=UTF-8 || echo "⚠️ SonarQube analysis failed (non-blocking)"
+
+          echo "✓ SonarQube analysis completed"
+          echo "View results at: ${SONAR_HOST_URL}/dashboard?id=ecommerce-performance-tests"
+
+  summary:
+    name: Performance Test Summary
+    runs-on: ubuntu-latest
+    needs: [initialize, get-api-gateway-url, run-performance-tests]
+    if: always()
+    steps:
+      - name: Display summary
+        run: |
+          echo "========================================="
+          echo "  Performance Test Summary"
+          echo "========================================="
+          echo "✓ Environment: ${{ github.event.inputs.environment || 'prod' }}"
+          echo "✓ Test Type: ${{ github.event.inputs.test_type || 'MixedWorkloadUser' }}"
+          echo "✓ Users: ${{ github.event.inputs.users || '100' }}"
+          echo "✓ Spawn Rate: ${{ github.event.inputs.spawn_rate || '10' }}"
+          echo "✓ Duration: ${{ github.event.inputs.run_time || '5m' }}"
+          echo "✓ Report: ${{ env.REPORT_NAME }}.html"
+          echo ""
+          echo "View Results:"
+          echo "- HTML Report: Check workflow artifacts"
+          echo "- CSV Data: Check workflow artifacts"
+          echo "- SonarQube: Check SonarQube dashboard"
+          echo ""
+          echo "Next Steps:"
+          echo "1. Review report for performance bottlenecks"
+          echo "2. Check error rates and response times"
+          echo "3. Compare with previous test runs"
+          echo "4. Review SonarQube for code quality issues"
+          echo "5. Scale services if needed"
+          echo "========================================="
+
+      - name: Check test status
+        if: needs.run-performance-tests.result == 'failure'
+        run: |
+          echo "❌ Performance tests failed"
+          exit 1

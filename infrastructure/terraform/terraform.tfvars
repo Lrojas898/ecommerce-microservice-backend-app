@@ -1,9 +1,0 @@
-aws_region                = "us-east-2"
-project_name              = "ecommerce-microservices"
-environment               = "dev"
-jenkins_instance_type     = "m7i-flex.large"   # Actual instance type in use
-eks_node_instance_type    = "t3a.large"        # 8GB RAM, AMD processors (cost-effective)
-eks_desired_capacity      = 4
-eks_min_capacity          = 1
-eks_max_capacity          = 4
-allowed_cidr_blocks       = ["0.0.0.0/0"]      # CHANGE THIS in production!
