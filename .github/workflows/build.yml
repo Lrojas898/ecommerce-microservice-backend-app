@@ -165,7 +165,7 @@ jobs:
       - name: Run tests for ${{ matrix.service }}
         run: |
           echo "Testing ${{ matrix.service }}..."
-          mvn test -pl ${{ matrix.service }} -q
+          mvn test -pl ${{ matrix.service }}
           echo "✓ ${{ matrix.service }} tests passed"
 
       - name: Publish test results
