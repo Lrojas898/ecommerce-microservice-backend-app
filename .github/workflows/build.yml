@@ -276,7 +276,8 @@ jobs:
 
       - name: Create optimized Dockerfile
         run: |
-          cat > ${{ matrix.service }}/Dockerfile.optimized <<'EOF'
+          mkdir -p ${{ matrix.service }}
+          cat > ${{ matrix.service }}/Dockerfile.optimized <<EOF
           FROM eclipse-temurin:11-jre
           WORKDIR /app
           COPY ${{ matrix.service }}-v${{ env.VERSION }}.jar app.jar
