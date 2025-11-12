@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: luisrojasc/order-service:v0.1.0-20251111-104445
+          image: luisrojasc/order-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8083

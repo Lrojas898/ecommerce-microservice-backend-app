@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: luisrojasc/api-gateway:v0.1.0-20251111-104445
+          image: luisrojasc/api-gateway:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80

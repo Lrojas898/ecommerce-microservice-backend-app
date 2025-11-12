@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: shipping-service
-          image: luisrojasc/shipping-service:v0.1.0-20251111-104445
+          image: luisrojasc/shipping-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8085
