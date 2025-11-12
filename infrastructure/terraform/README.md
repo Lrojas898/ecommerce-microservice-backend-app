@@ -213,6 +213,93 @@ cd monitoring
 
 ---
 
+## 🔄 **GitHub Actions Pipeline**
+
+### Overview
+
+Además del uso manual de Terraform, este proyecto incluye una pipeline automatizada de GitHub Actions para gestionar la infraestructura de manera segura y controlada.
+
+### Configuración de Secretos (OBLIGATORIO)
+
+Antes de usar la pipeline, configura estos secretos en GitHub:
+
+```
+Settings → Secrets and variables → Actions → New repository secret
+```
+
+| Secreto | Valor |
+|---------|-------|
+| `DO_TOKEN` | Tu token de API de Digital Ocean |
+| `LETSENCRYPT_EMAIL` | Tu email para certificados SSL |
+
+### Configuración de Environments (OBLIGATORIO)
+
+Para aprobaciones manuales, crea estos ambientes en GitHub:
+
+```
+Settings → Environments → New environment
+```
+
+| Ambiente | Configuración |
+|----------|---------------|
+| `prod` | Required reviewers: Tu usuario |
+| `dev` | Required reviewers: Tu usuario |
+| `prod-destroy` | Required reviewers + Wait timer: 5 min |
+| `dev-destroy` | Required reviewers: Tu usuario |
+
+### Uso de la Pipeline
+
+#### 1. Plan (Ver cambios)
+```
+Actions → Terraform Infrastructure → Run workflow
+- Action: plan
+- Environment: prod
+```
+
+Muestra qué recursos se crearían/modificarían sin hacer cambios reales.
+
+#### 2. Apply (Crear/Actualizar infraestructura)
+```
+Actions → Terraform Infrastructure → Run workflow
+- Action: apply
+- Environment: prod
+- Auto-approve: false
+```
+
+1. Ejecuta plan
+2. Espera aprobación manual
+3. Aplica cambios
+4. Guarda estado como artifact
+
+**Aprobación manual:**
+1. Ve a Actions → Click en el workflow
+2. Click en "Review deployments"
+3. Selecciona el ambiente
+4. Click en "Approve and deploy"
+
+#### 3. Destroy (Eliminar infraestructura)
+```
+Actions → Terraform Infrastructure → Run workflow
+- Action: destroy
+- Environment: prod
+- Auto-approve: false (SIEMPRE)
+```
+
+⚠️ **PELIGROSO**: Elimina todos los recursos. Úsalo con extrema precaución.
+
+### Triggers Automáticos
+
+La pipeline también se ejecuta automáticamente en estos casos:
+
+- **Push a master/main**: Ejecuta `terraform plan` automáticamente
+- **Pull Requests**: Comenta el plan en el PR para revisión
+
+### Gestión del Estado
+
+El estado de Terraform se guarda como artifact de GitHub con retención de 30 días. Para trabajo en equipo, se recomienda configurar backend remoto en Digital Ocean Spaces (ver sección abajo).
+
+---
+
 ## ⚙️ **Configuration**
 
 ### terraform.tfvars
