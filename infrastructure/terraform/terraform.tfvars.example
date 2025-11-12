@@ -24,7 +24,8 @@ environment  = "prod"
 cluster_region = "nyc1"
 
 # Kubernetes version (check available versions with: doctl kubernetes options versions)
-cluster_version = "1.28.2-do.0"
+# Available versions: 1.31.9-do.5, 1.32.5-do.5, 1.33.1-do.5
+cluster_version = "1.31.9-do.5"
 
 # Node pool configuration
 # Options:
@@ -37,9 +38,10 @@ node_pool_size = "s-4vcpu-8gb"
 node_pool_count = 3
 
 # Auto-scaling configuration
+# NOTE: Adjust max_nodes based on your DigitalOcean account droplet limit
 node_pool_auto_scale = true
 node_pool_min_nodes  = 3
-node_pool_max_nodes  = 6
+node_pool_max_nodes  = 3  # Adjusted to match typical account limits
 
 # ============================================================
 # Networking Configuration

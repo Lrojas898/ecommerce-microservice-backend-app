@@ -96,6 +96,8 @@ jobs:
         run: terraform init
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
 
       - name: Create terraform.tfvars
         run: |
@@ -104,12 +106,12 @@ jobs:
           project_name = "ecommerce-microservices"
           environment = "${{ github.event.inputs.environment || 'prod' }}"
           cluster_region = "nyc1"
-          cluster_version = "1.28.2-do.0"
+          cluster_version = "1.31.9-do.5"
           node_pool_size = "s-4vcpu-8gb"
           node_pool_count = 3
           node_pool_auto_scale = true
           node_pool_min_nodes = 3
-          node_pool_max_nodes = 6
+          node_pool_max_nodes = 3
           enable_ingress_nginx = true
           enable_cert_manager = true
           letsencrypt_email = "${{ secrets.LETSENCRYPT_EMAIL }}"
@@ -202,6 +204,8 @@ jobs:
         run: terraform init
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
 
       - name: Create terraform.tfvars
         run: |
@@ -210,12 +214,12 @@ jobs:
           project_name = "ecommerce-microservices"
           environment = "${{ github.event.inputs.environment }}"
           cluster_region = "nyc1"
-          cluster_version = "1.28.2-do.0"
+          cluster_version = "1.31.9-do.5"
           node_pool_size = "s-4vcpu-8gb"
           node_pool_count = 3
           node_pool_auto_scale = true
           node_pool_min_nodes = 3
-          node_pool_max_nodes = 6
+          node_pool_max_nodes = 3
           enable_ingress_nginx = true
           enable_cert_manager = true
           letsencrypt_email = "${{ secrets.LETSENCRYPT_EMAIL }}"
@@ -303,6 +307,8 @@ jobs:
         run: terraform init
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
 
       - name: Download Terraform State
         uses: actions/download-artifact@v4
@@ -318,12 +324,12 @@ jobs:
           project_name = "ecommerce-microservices"
           environment = "${{ github.event.inputs.environment }}"
           cluster_region = "nyc1"
-          cluster_version = "1.28.2-do.0"
+          cluster_version = "1.31.9-do.5"
           node_pool_size = "s-4vcpu-8gb"
           node_pool_count = 3
           node_pool_auto_scale = true
           node_pool_min_nodes = 3
-          node_pool_max_nodes = 6
+          node_pool_max_nodes = 3
           enable_ingress_nginx = true
           enable_cert_manager = true
           letsencrypt_email = "${{ secrets.LETSENCRYPT_EMAIL }}"

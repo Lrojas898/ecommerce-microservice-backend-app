@@ -34,7 +34,7 @@ variable "cluster_region" {
 variable "cluster_version" {
   description = "Kubernetes version for the cluster"
   type        = string
-  default     = "1.28.2-do.0"
+  default     = "1.31.9-do.5" # Updated to latest stable version available in DigitalOcean
 }
 
 variable "node_pool_size" {
@@ -72,7 +72,7 @@ variable "node_pool_min_nodes" {
 variable "node_pool_max_nodes" {
   description = "Maximum number of nodes when auto-scaling"
   type        = number
-  default     = 6
+  default     = 3 # Adjusted to match DigitalOcean account droplet limit
 }
 
 # ============================================================
