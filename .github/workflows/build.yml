@@ -280,8 +280,14 @@ jobs:
           SERVICE="${{ matrix.service }}"
           VERSION="${{ env.VERSION }}"
           PORT="${{ steps.port.outputs.port }}"
-          printf 'FROM eclipse-temurin:11-jre\nWORKDIR /app\nCOPY %s-v%s.jar app.jar\nEXPOSE %s\nHEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 CMD curl -f http://localhost:%s/actuator/health || exit 1\nENTRYPOINT ["java", "-jar", "app.jar"]\n' \
-            "${SERVICE}" "${VERSION}" "${PORT}" "${PORT}" > ${{ matrix.service }}/Dockerfile.optimized
+          DOCKERFILE="${{ matrix.service }}/Dockerfile.optimized"
+
+          echo "FROM eclipse-temurin:11-jre" > "$DOCKERFILE"
+          echo "WORKDIR /app" >> "$DOCKERFILE"
+          echo "COPY ${SERVICE}-v${VERSION}.jar app.jar" >> "$DOCKERFILE"
+          echo "EXPOSE ${PORT}" >> "$DOCKERFILE"
+          echo "HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 CMD curl -f http://localhost:${PORT}/actuator/health || exit 1" >> "$DOCKERFILE"
+          echo 'ENTRYPOINT ["java", "-jar", "app.jar"]' >> "$DOCKERFILE"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
