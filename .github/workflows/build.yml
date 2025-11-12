@@ -92,8 +92,8 @@ jobs:
             echo "has_changes=true" >> $GITHUB_OUTPUT
             echo "changed_services=${CHANGED_SERVICES}" >> $GITHUB_OUTPUT
 
-            # Convert comma-separated list to JSON array
-            CHANGED_SERVICES_JSON=$(echo "$CHANGED_SERVICES" | jq -R -s -c 'split(",") | map(select(length > 0))')
+            # Convert comma-separated list to JSON array (trim whitespace)
+            CHANGED_SERVICES_JSON=$(echo "$CHANGED_SERVICES" | jq -R -s -c 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length > 0))')
             echo "changed_services_json=${CHANGED_SERVICES_JSON}" >> $GITHUB_OUTPUT
 
             echo "Services to build: ${CHANGED_SERVICES}"
@@ -260,7 +260,9 @@ jobs:
       - name: Determine service port
         id: port
         run: |
-          case "${{ matrix.service }}" in
+          # Trim whitespace from service name
+          SERVICE=$(echo "${{ matrix.service }}" | xargs)
+          case "${SERVICE}" in
             api-gateway) PORT=8080 ;;
             service-discovery) PORT=8761 ;;
             proxy-client) PORT=8080 ;;
@@ -275,33 +277,39 @@ jobs:
           echo "port=${PORT}" >> $GITHUB_OUTPUT
 
       - name: Create optimized Dockerfile
+        id: dockerfile
         run: |
-          mkdir -p ${{ matrix.service }}
-          SERVICE="${{ matrix.service }}"
+          # Trim whitespace from service name
+          SERVICE=$(echo "${{ matrix.service }}" | xargs)
           VERSION="${{ env.VERSION }}"
           PORT="${{ steps.port.outputs.port }}"
-          echo "FROM eclipse-temurin:11-jre" > ${SERVICE}/Dockerfile.optimized
-          echo "WORKDIR /app" >> ${SERVICE}/Dockerfile.optimized
-          echo "COPY ${SERVICE}-v${VERSION}.jar app.jar" >> ${SERVICE}/Dockerfile.optimized
-          echo "EXPOSE ${PORT}" >> ${SERVICE}/Dockerfile.optimized
-          echo "HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 CMD curl -f http://localhost:${PORT}/actuator/health || exit 1" >> ${SERVICE}/Dockerfile.optimized
-          echo 'ENTRYPOINT ["java", "-jar", "app.jar"]' >> ${SERVICE}/Dockerfile.optimized
+
+          echo "service_name=${SERVICE}" >> $GITHUB_OUTPUT
+
+          mkdir -p "${SERVICE}"
+
+          echo "FROM eclipse-temurin:11-jre" > "${SERVICE}/Dockerfile.optimized"
+          echo "WORKDIR /app" >> "${SERVICE}/Dockerfile.optimized"
+          echo "COPY ${SERVICE}-v${VERSION}.jar app.jar" >> "${SERVICE}/Dockerfile.optimized"
+          echo "EXPOSE ${PORT}" >> "${SERVICE}/Dockerfile.optimized"
+          echo "HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 CMD curl -f http://localhost:${PORT}/actuator/health || exit 1" >> "${SERVICE}/Dockerfile.optimized"
+          echo 'ENTRYPOINT ["java", "-jar", "app.jar"]' >> "${SERVICE}/Dockerfile.optimized"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.service }}/target
-          file: ${{ matrix.service }}/Dockerfile.optimized
+          context: ${{ steps.dockerfile.outputs.service_name }}/target
+          file: ${{ steps.dockerfile.outputs.service_name }}/Dockerfile.optimized
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:${{ env.VERSION }}
-            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:${{ needs.detect-changes.outputs.version_tag }}
-            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/${{ steps.dockerfile.outputs.service_name }}:${{ env.VERSION }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ steps.dockerfile.outputs.service_name }}:${{ needs.detect-changes.outputs.version_tag }}
+            ${{ secrets.DOCKER_USERNAME }}/${{ steps.dockerfile.outputs.service_name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Image digest
-        run: echo "Built and pushed ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:${{ needs.detect-changes.outputs.version_tag }}"
+        run: echo "Built and pushed ${{ secrets.DOCKER_USERNAME }}/${{ steps.dockerfile.outputs.service_name }}:${{ needs.detect-changes.outputs.version_tag }}"
 
   build-summary:
     name: Build Summary
