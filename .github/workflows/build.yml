@@ -276,16 +276,16 @@ jobs:
 
       - name: Create optimized Dockerfile
         run: |
+          mkdir -p ${{ matrix.service }}
           SERVICE="${{ matrix.service }}"
           VERSION="${{ env.VERSION }}"
           PORT="${{ steps.port.outputs.port }}"
-          mkdir -p "$SERVICE"
-          echo "FROM eclipse-temurin:11-jre" > "$SERVICE/Dockerfile.optimized"
-          echo "WORKDIR /app" >> "$SERVICE/Dockerfile.optimized"
-          echo "COPY \${SERVICE}-v\${VERSION}.jar app.jar" >> "$SERVICE/Dockerfile.optimized"
-          echo "EXPOSE \${PORT}" >> "$SERVICE/Dockerfile.optimized"
-          echo "HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 CMD curl -f http://localhost:\${PORT}/actuator/health || exit 1" >> "$SERVICE/Dockerfile.optimized"
-          echo 'ENTRYPOINT ["java", "-jar", "app.jar"]' >> "$SERVICE/Dockerfile.optimized"
+          echo "FROM eclipse-temurin:11-jre" > ${SERVICE}/Dockerfile.optimized
+          echo "WORKDIR /app" >> ${SERVICE}/Dockerfile.optimized
+          echo "COPY ${SERVICE}-v${VERSION}.jar app.jar" >> ${SERVICE}/Dockerfile.optimized
+          echo "EXPOSE ${PORT}" >> ${SERVICE}/Dockerfile.optimized
+          echo "HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 CMD curl -f http://localhost:${PORT}/actuator/health || exit 1" >> ${SERVICE}/Dockerfile.optimized
+          echo 'ENTRYPOINT ["java", "-jar", "app.jar"]' >> ${SERVICE}/Dockerfile.optimized
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
