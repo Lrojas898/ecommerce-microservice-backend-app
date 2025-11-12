@@ -250,7 +250,8 @@ jobs:
           VERSION_MAP='${{ needs.initialize.outputs.service_version_map }}'
 
           if echo "$SERVICES_TO_DEPLOY" | grep -q "${{ matrix.service }}"; then
-            VERSION=$(echo "$VERSION_MAP" | jq -r '.["${{ matrix.service }}"] // "latest"')
+            SERVICE_NAME="${{ matrix.service }}"
+            VERSION=$(echo "$VERSION_MAP" | jq -r --arg svc "$SERVICE_NAME" '.[$svc] // "latest"')
             IMAGE_TAG="${{ github.event.inputs.docker_user }}/${{ matrix.service }}:${VERSION}"
 
             echo "Deploying ${{ matrix.service }} (${IMAGE_TAG})..."

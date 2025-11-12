@@ -297,7 +297,7 @@ jobs:
             echo "Error Rate: ${ERROR_RATE}%"
 
             # Check if error rate is acceptable (< 5%)
-            if (( $(echo "$ERROR_RATE > 5.0" | bc -l 2>/dev/null || echo 0) )); then
+            if awk -v rate="$ERROR_RATE" 'BEGIN {exit !(rate > 5.0)}'; then
               echo "⚠️ WARNING: Error rate is high (${ERROR_RATE}%)"
               exit 1
             else
