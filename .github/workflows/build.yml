@@ -277,15 +277,18 @@ jobs:
       - name: Create optimized Dockerfile
         run: |
           mkdir -p ${{ matrix.service }}
-          cat > ${{ matrix.service }}/Dockerfile.optimized <<EOF
-          FROM eclipse-temurin:11-jre
-          WORKDIR /app
-          COPY ${{ matrix.service }}-v${{ env.VERSION }}.jar app.jar
-          EXPOSE ${{ steps.port.outputs.port }}
-          HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-            CMD curl -f http://localhost:${{ steps.port.outputs.port }}/actuator/health || exit 1
-          ENTRYPOINT ["java", "-jar", "app.jar"]
-          EOF
+          cat > ${{ matrix.service }}/Dockerfile.optimized << 'DOCKERFILE'
+FROM eclipse-temurin:11-jre
+WORKDIR /app
+COPY SERVICE_NAME-vVERSION.jar app.jar
+EXPOSE SERVICE_PORT
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:SERVICE_PORT/actuator/health || exit 1
+ENTRYPOINT ["java", "-jar", "app.jar"]
+DOCKERFILE
+          sed -i "s/SERVICE_NAME/${{ matrix.service }}/g" ${{ matrix.service }}/Dockerfile.optimized
+          sed -i "s/VERSION/${{ env.VERSION }}/g" ${{ matrix.service }}/Dockerfile.optimized
+          sed -i "s/SERVICE_PORT/${{ steps.port.outputs.port }}/g" ${{ matrix.service }}/Dockerfile.optimized
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
