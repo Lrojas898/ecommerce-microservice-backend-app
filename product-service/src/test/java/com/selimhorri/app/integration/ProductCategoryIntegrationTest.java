@@ -3,6 +3,7 @@ package com.selimhorri.app.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -121,7 +122,7 @@ class ProductCategoryIntegrationTest {
         // Act
         final List<Product> electronicsProducts = this.productRepository.findAll().stream()
                 .filter(p -> p.getCategory().getCategoryTitle().equals("Electronics"))
-                .toList();
+                .collect(Collectors.toList());
 
         // Assert
         assertThat(electronicsProducts).hasSize(2);
