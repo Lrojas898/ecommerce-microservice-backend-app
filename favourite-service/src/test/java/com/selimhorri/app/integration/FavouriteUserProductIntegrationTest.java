@@ -3,6 +3,7 @@ package com.selimhorri.app.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,7 +102,7 @@ class FavouriteUserProductIntegrationTest {
         // Act: Get favourites for user 2
         final var userFavourites = this.favouriteRepository.findAll().stream()
                 .filter(f -> f.getUserId().equals(2))
-                .toList();
+                .collect(Collectors.toList());
 
         // Assert
         assertThat(userFavourites).hasSize(3);
@@ -132,7 +133,7 @@ class FavouriteUserProductIntegrationTest {
         // Act - delete all favourites for user 4
         final var userFavourites = this.favouriteRepository.findAll().stream()
             .filter(f -> f.getUserId().equals(4))
-            .toList();
+            .collect(Collectors.toList());
 
         this.favouriteRepository.deleteAll(userFavourites);
         this.favouriteRepository.flush();

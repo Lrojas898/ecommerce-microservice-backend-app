@@ -2,6 +2,8 @@ package com.selimhorri.app.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -80,7 +82,7 @@ class ShippingPaymentIntegrationTest {
         // Act
         final var items = this.orderItemRepository.findAll().stream()
                 .filter(item -> item.getOrderId().equals(2001))
-                .toList();
+                .collect(Collectors.toList());
 
         // Assert
         assertThat(items).hasSize(2);
