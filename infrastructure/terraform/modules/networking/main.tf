@@ -83,74 +83,94 @@ resource "helm_release" "cert_manager" {
 # ============================================================
 # ClusterIssuer for Let's Encrypt (Production)
 # ============================================================
+# NOTE: ClusterIssuers are commented out because kubernetes_manifest requires
+# cluster access during plan phase. Apply these manually after cluster creation:
+#
+# kubectl apply -f - <<EOF
+# apiVersion: cert-manager.io/v1
+# kind: ClusterIssuer
+# metadata:
+#   name: letsencrypt-prod
+# spec:
+#   acme:
+#     server: https://acme-v02.api.letsencrypt.org/directory
+#     email: YOUR_EMAIL
+#     privateKeySecretRef:
+#       name: letsencrypt-prod
+#     solvers:
+#     - http01:
+#         ingress:
+#           class: nginx
+# EOF
 
-resource "kubernetes_manifest" "letsencrypt_prod" {
-  count = var.enable_cert_manager && var.letsencrypt_email != "" ? 1 : 0
-
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata = {
-      name = "letsencrypt-prod"
-    }
-    spec = {
-      acme = {
-        server = "https://acme-v02.api.letsencrypt.org/directory"
-        email  = var.letsencrypt_email
-        privateKeySecretRef = {
-          name = "letsencrypt-prod"
-        }
-        solvers = [
-          {
-            http01 = {
-              ingress = {
-                class = "nginx"
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-
-  depends_on = [helm_release.cert_manager]
-}
+# resource "kubernetes_manifest" "letsencrypt_prod" {
+#   count = var.enable_cert_manager && var.letsencrypt_email != "" ? 1 : 0
+#
+#   manifest = {
+#     apiVersion = "cert-manager.io/v1"
+#     kind       = "ClusterIssuer"
+#     metadata = {
+#       name = "letsencrypt-prod"
+#     }
+#     spec = {
+#       acme = {
+#         server = "https://acme-v02.api.letsencrypt.org/directory"
+#         email  = var.letsencrypt_email
+#         privateKeySecretRef = {
+#           name = "letsencrypt-prod"
+#         }
+#         solvers = [
+#           {
+#             http01 = {
+#               ingress = {
+#                 class = "nginx"
+#               }
+#             }
+#           }
+#         ]
+#       }
+#     }
+#   }
+#
+#   depends_on = [helm_release.cert_manager]
+# }
 
 # ============================================================
 # ClusterIssuer for Let's Encrypt (Staging - for testing)
 # ============================================================
+# NOTE: Apply manually after cluster creation (see above)
 
-resource "kubernetes_manifest" "letsencrypt_staging" {
-  count = var.enable_cert_manager && var.letsencrypt_email != "" ? 1 : 0
-
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata = {
-      name = "letsencrypt-staging"
-    }
-    spec = {
-      acme = {
-        server = "https://acme-staging-v02.api.letsencrypt.org/directory"
-        email  = var.letsencrypt_email
-        privateKeySecretRef = {
-          name = "letsencrypt-staging"
-        }
-        solvers = [
-          {
-            http01 = {
-              ingress = {
-                class = "nginx"
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-
-  depends_on = [helm_release.cert_manager]
-}
+# resource "kubernetes_manifest" "letsencrypt_staging" {
+#   count = var.enable_cert_manager && var.letsencrypt_email != "" ? 1 : 0
+#
+#   manifest = {
+#     apiVersion = "cert-manager.io/v1"
+#     kind       = "ClusterIssuer"
+#     metadata = {
+#       name = "letsencrypt-staging"
+#     }
+#     spec = {
+#       acme = {
+#         server = "https://acme-staging-v02.api.letsencrypt.org/directory"
+#         email  = var.letsencrypt_email
+#         privateKeySecretRef = {
+#           name = "letsencrypt-staging"
+#         }
+#         solvers = [
+#           {
+#             http01 = {
+#               ingress = {
+#                 class = "nginx"
+#               }
+#             }
+#           }
+#         ]
+#       }
+#     }
+#   }
+#
+#   depends_on = [helm_release.cert_manager]
+# }
 
 # ============================================================
 # Get LoadBalancer IP for DNS configuration
