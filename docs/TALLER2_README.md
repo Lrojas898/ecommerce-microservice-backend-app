@@ -3197,3 +3197,413 @@ kubectl port-forward -n monitoring svc/prometheus 9090:9090
 
 ---
 
+
+## 9. Estado Actual de Monitoring y Logging
+
+### 9.1 Arquitectura de Observabilidad Implementada
+
+El proyecto implementa una stack completa de observabilidad que incluye:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  OBSERVABILITY STACK                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────┐  ┌──────────────────┐                │
+│  │   MONITORING     │  │     LOGGING      │                │
+│  ├──────────────────┤  ├──────────────────┤                │
+│  │  • Prometheus    │  │  • Elasticsearch │                │
+│  │  • Grafana       │  │  • Kibana        │                │
+│  │  • Alertmanager  │  │  • Filebeat      │                │
+│  └──────────────────┘  └──────────────────┘                │
+│          │                       │                           │
+│          └───────────┬───────────┘                           │
+│                      ▼                                       │
+│            ┌──────────────────┐                             │
+│            │  MICROSERVICES   │                             │
+│            │   (prod/dev)     │                             │
+│            └──────────────────┘                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Stack de Monitoring (Prometheus + Grafana)
+
+#### 9.2.1 Componentes Desplegados
+
+**Namespace**: `monitoring`
+
+| Componente | Estado | URL de Acceso | Descripción |
+|------------|--------|---------------|-------------|
+| **Prometheus** | ✅ Running | http://165.227.206.199:30090 | Sistema de métricas y alertas |
+| **Grafana** | ✅ Running | http://165.227.206.199:30030 | Visualización de métricas |
+| **Alertmanager** | ✅ Running | http://165.227.206.199:30093 | Gestión de alertas |
+
+#### 9.2.2 Configuración de Prometheus
+
+**Targets Monitoreados:**
+- ✅ Todos los microservicios en namespace `prod`
+- ✅ Todos los microservicios en namespace `dev`
+- ✅ API Gateway
+- ✅ Service Discovery (Eureka)
+
+**Métricas Recolectadas:**
+- HTTP requests (total, rate, duration)
+- JVM metrics (heap, threads, GC)
+- System metrics (CPU, memory)
+- Custom business metrics
+
+**Scrape Interval**: 15 segundos
+
+#### 9.2.3 Dashboards de Grafana
+
+**Dashboards Preconfigurados:**
+
+1. **Microservices Overview**
+   - Request rate por servicio
+   - Response times (p50, p95, p99)
+   - Error rate
+   - CPU y Memory usage
+
+2. **JVM Metrics**
+   - Heap memory usage
+   - GC activity
+   - Thread count
+   - Class loading
+
+3. **HTTP Metrics**
+   - Requests por endpoint
+   - Status codes distribution
+   - Latency percentiles
+
+**Credenciales de Acceso:**
+- Usuario: `admin`
+- Password: `admin123`
+
+#### 9.2.4 Alertmanager
+
+**Alertas Configuradas:**
+- High error rate (> 5%)
+- High response time (> 2s p95)
+- Service down
+- High memory usage (> 90%)
+
+### 9.3 Stack de Logging (ELK)
+
+#### 9.3.1 Componentes Desplegados
+
+**Namespace**: `logging`
+
+| Componente | Estado | URL de Acceso | Descripción |
+|------------|--------|---------------|-------------|
+| **Elasticsearch** | ✅ Running | http://165.227.206.199:30920 | Motor de búsqueda y almacenamiento |
+| **Kibana** | ✅ Running | http://165.227.206.199:30561 | Interfaz de visualización de logs |
+| **Filebeat** | ✅ Running | N/A (DaemonSet) | Recolector de logs de pods |
+
+#### 9.3.2 Configuración de Elasticsearch
+
+**Características:**
+- Modo single-node (desarrollo)
+- Security deshabilitado (simplicidad)
+- Storage: 5GB PersistentVolumeClaim
+- Índice principal: `ecommerce-logs-*`
+
+**Estadísticas Actuales:**
+- Total de documentos: ~160,000 logs
+- Índice activo: `.ds-ecommerce-logs-2025.11.13-2025.11.13-000001`
+- Tamaño del índice: ~86 MB
+
+#### 9.3.3 Configuración de Kibana
+
+**Acceso:**
+- URL: http://165.227.206.199:30561/kibana/
+- No requiere autenticación (modo desarrollo)
+
+**Data Views Configurados:**
+- **Ecommerce Microservices Logs**: Patrón `ecommerce-logs-*`
+- Timestamp field: `@timestamp`
+
+**Dashboard Creado:**
+
+**Microservices Logging Dashboard** incluye:
+
+1. **Timeline de Logs**
+   - Histograma mostrando volumen de logs en el tiempo
+   - Permite identificar picos de actividad
+
+2. **Logs por Namespace**
+   - Pie chart mostrando distribución entre prod/dev
+   - Visualiza balance de carga
+
+3. **Tabla de Logs Recientes**
+   - Columnas: Pod Name, Namespace, Message
+   - Ordenados por timestamp descendente
+   - Filtros disponibles por servicio y namespace
+
+**URL Directa al Dashboard:**
+```
+http://165.227.206.199:30561/kibana/app/dashboards#/view/microservices-dashboard
+```
+
+**Configuración de Auto-refresh:**
+- Intervalo: 10 segundos
+- Período por defecto: Últimas 24 horas
+
+#### 9.3.4 Configuración de Filebeat
+
+**Deployment:**
+- Tipo: DaemonSet (1 pod por nodo)
+- Configuración: Recolecta logs de todos los contenedores
+
+**Logs Recolectados:**
+- Stdout/stderr de todos los pods
+- Metadata de Kubernetes (namespace, pod name, labels, node)
+- Timestamping automático
+
+**Índice de Elasticsearch:**
+- Patrón: `ecommerce-logs-YYYY.MM.DD`
+- Lifecycle: Automático por fecha
+
+**Servicios Monitoreados:**
+- ✅ user-service
+- ✅ product-service
+- ✅ order-service
+- ✅ payment-service
+- ✅ shipping-service
+- ✅ favourite-service
+- ✅ api-gateway
+- ✅ service-discovery
+
+### 9.4 Integración entre Monitoring y Logging
+
+#### 9.4.1 Correlación de Eventos
+
+**Flujo de Troubleshooting:**
+
+```
+1. Alerta en Prometheus (e.g., High Error Rate)
+          ↓
+2. Revisar dashboard de Grafana para identificar servicio
+          ↓
+3. Ir a Kibana y filtrar logs del servicio afectado
+          ↓
+4. Analizar stack traces y mensajes de error
+          ↓
+5. Identificar causa raíz
+```
+
+#### 9.4.2 Campos Comunes
+
+Ambos sistemas usan metadata de Kubernetes:
+- `kubernetes.namespace`
+- `kubernetes.pod.name`
+- `kubernetes.labels.app`
+
+Esto permite correlacionar métricas con logs fácilmente.
+
+### 9.5 Acceso a las Herramientas
+
+#### 9.5.1 URLs de Acceso
+
+| Herramienta | URL | Puerto NodePort |
+|-------------|-----|-----------------|
+| Grafana | http://165.227.206.199:30030 | 30030 |
+| Prometheus | http://165.227.206.199:30090 | 30090 |
+| Alertmanager | http://165.227.206.199:30093 | 30093 |
+| Kibana | http://165.227.206.199:30561/kibana/ | 30561 |
+| Elasticsearch | http://165.227.206.199:30920 | 30920 |
+
+#### 9.5.2 Comandos de Verificación
+
+**Verificar estado de Monitoring:**
+```bash
+kubectl get pods -n monitoring
+kubectl get svc -n monitoring
+```
+
+**Verificar estado de Logging:**
+```bash
+kubectl get pods -n logging
+kubectl get svc -n logging
+```
+
+**Verificar ingreso de logs:**
+```bash
+# Contar documentos en Elasticsearch
+kubectl exec -n logging elasticsearch-<pod-id> -- \
+  curl -s "http://localhost:9200/ecommerce-logs-*/_count" | jq .
+```
+
+**Verificar targets de Prometheus:**
+```bash
+# Ver targets desde línea de comandos
+curl -s http://165.227.206.199:30090/api/v1/targets | jq '.data.activeTargets[] | {job, health}'
+```
+
+### 9.6 Casos de Uso Prácticos
+
+#### 9.6.1 Diagnóstico de Performance
+
+**Escenario:** API Gateway responde lento
+
+**Pasos:**
+1. Ir a Grafana → Dashboard "Microservices Overview"
+2. Identificar servicio con alta latencia (p95 > 2s)
+3. Ver métricas detalladas del servicio
+4. Ir a Kibana → Filtrar por `kubernetes.pod.name: "<service-name>*"`
+5. Buscar logs con errores o warnings
+6. Analizar stack traces
+
+#### 9.6.2 Análisis de Errores
+
+**Escenario:** Aumento en tasa de errores
+
+**En Grafana:**
+```promql
+rate(http_server_requests_seconds_count{status=~"5.."}[5m])
+```
+
+**En Kibana:**
+```
+kubernetes.namespace: "prod" AND (level: "ERROR" OR status: 500)
+```
+
+#### 9.6.3 Monitoreo de Despliegues
+
+**Durante un despliegue:**
+1. Monitorear en Grafana:
+   - Request rate (debe mantenerse estable)
+   - Error rate (debe permanecer bajo)
+   - Response time (no debe degradarse)
+
+2. Verificar logs en Kibana:
+   - Filtrar por nuevo pod name
+   - Buscar errores de inicio
+   - Verificar conexiones a dependencias
+
+### 9.7 Mantenimiento y Troubleshooting
+
+#### 9.7.1 Problemas Comunes de Monitoring
+
+**Prometheus no scrapeando targets:**
+```bash
+# Ver configuración de Prometheus
+kubectl get configmap prometheus-config -n monitoring -o yaml
+
+# Ver logs de Prometheus
+kubectl logs -f deployment/prometheus -n monitoring
+```
+
+**Grafana no muestra datos:**
+```bash
+# Verificar datasource
+curl -u admin:admin123 http://165.227.206.199:30030/api/datasources
+
+# Ver logs de Grafana
+kubectl logs -f deployment/grafana -n monitoring
+```
+
+#### 9.7.2 Problemas Comunes de Logging
+
+**Kibana no accesible:**
+```bash
+# Verificar pods
+kubectl get pods -n logging -l app=kibana
+
+# Verificar logs
+kubectl logs -f deployment/kibana -n logging
+
+# Verificar health checks
+kubectl describe pod -n logging -l app=kibana | grep -A 10 "Liveness\|Readiness"
+```
+
+**Elasticsearch sin espacio:**
+```bash
+# Ver uso del PVC
+kubectl exec -n logging elasticsearch-<pod-id> -- df -h /usr/share/elasticsearch/data
+
+# Limpiar índices antiguos
+kubectl exec -n logging elasticsearch-<pod-id> -- \
+  curl -X DELETE "http://localhost:9200/ecommerce-logs-2025.11.01-*"
+```
+
+**Filebeat no enviando logs:**
+```bash
+# Ver logs de Filebeat
+kubectl logs -f daemonset/filebeat -n logging
+
+# Verificar conectividad a Elasticsearch
+kubectl exec -n logging filebeat-<pod-id> -- \
+  curl -s http://elasticsearch.logging.svc.cluster.local:9200
+```
+
+### 9.8 Mejoras Futuras Recomendadas
+
+#### 9.8.1 Monitoring
+
+- [ ] Configurar alertas por email/Slack en Alertmanager
+- [ ] Añadir más dashboards específicos por servicio
+- [ ] Implementar Service Level Objectives (SLOs)
+- [ ] Añadir monitoring de base de datos
+- [ ] Configurar retención de métricas (actualmente ilimitada)
+
+#### 9.8.2 Logging
+
+- [ ] Implementar Index Lifecycle Management (ILM)
+- [ ] Configurar hot-warm-cold architecture
+- [ ] Añadir autenticación a Kibana (X-Pack)
+- [ ] Implementar log aggregation con Logstash
+- [ ] Configurar alertas basadas en logs
+
+#### 9.8.3 Integración
+
+- [ ] Implementar correlation IDs entre servicios
+- [ ] Añadir distributed tracing (Jaeger integrado)
+- [ ] Crear dashboards unificados en Grafana con links a Kibana
+- [ ] Implementar anomaly detection con ML
+
+### 9.9 Resumen del Estado Actual
+
+| Categoría | Componente | Estado | Métricas Clave |
+|-----------|------------|--------|----------------|
+| **Monitoring** | Prometheus | ✅ Operacional | 8 targets UP, scrape cada 15s |
+| | Grafana | ✅ Operacional | 3 dashboards configurados |
+| | Alertmanager | ✅ Operacional | 4 alertas configuradas |
+| **Logging** | Elasticsearch | ✅ Operacional | 160K docs, 86MB storage |
+| | Kibana | ✅ Operacional | 1 dashboard, 3 visualizaciones |
+| | Filebeat | ✅ Operacional | 3 pods activos (DaemonSet) |
+| **Integración** | Metadata K8s | ✅ Completa | Correlación por pod/namespace |
+| **Acceso** | NodePort | ✅ Configurado | 5 servicios externos |
+
+### 9.10 Capturas de Pantalla Recomendadas
+
+Para documentar el estado actual, se recomienda capturar:
+
+#### Monitoring:
+1. **Prometheus Targets** (`/targets`): Mostrar todos los servicios UP
+2. **Grafana Dashboard**: Vista general del Microservices Overview
+3. **Grafana Metrics**: Detalle de un servicio específico
+4. **Alertmanager**: Lista de alertas configuradas
+
+#### Logging:
+5. **Kibana Discover**: Vista de logs recientes con filtros
+6. **Kibana Dashboard**: Microservices Logging Dashboard completo
+7. **Kibana Visualizations**: Timeline y Pie chart individuales
+8. **Elasticsearch Indices**: Información del índice principal
+
+#### Integración:
+9. **Troubleshooting Flow**: Desde alerta en Grafana hasta logs en Kibana
+10. **Pod Metadata**: Mostrar campos comunes entre sistemas
+
+### 9.11 Referencias Adicionales
+
+- **ELK Stack Documentation**: https://www.elastic.co/guide/
+- **Filebeat Kubernetes Configuration**: https://www.elastic.co/guide/en/beats/filebeat/current/running-on-kubernetes.html
+- **Prometheus Kubernetes SD**: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#kubernetes_sd_config
+- **Grafana Dashboard Best Practices**: https://grafana.com/docs/grafana/latest/best-practices/
+- **Observability Patterns**: https://www.oreilly.com/library/view/distributed-systems-observability/9781492033431/
+
+---
+
+**Fin del Documento**
+
+*Última actualización: Noviembre 2025*
