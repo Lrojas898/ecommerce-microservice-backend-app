@@ -221,7 +221,7 @@ jobs:
             mvn sonar:sonar \
               -pl ${service} \
               -Dsonar.organization=${SONAR_ORGANIZATION} \
-              -Dsonar.projectKey=ecommerce-deploy-ingesoftv_ecommerce-microservice-backend-app_${service} \
+              -Dsonar.projectKey=Lrojas898_ecommerce-microservice-backend-app_${service} \
               -Dsonar.projectName="E-Commerce ${service}" \
               -Dsonar.host.url=${SONAR_HOST_URL} \
               -Dsonar.token=${SONAR_TOKEN} \
