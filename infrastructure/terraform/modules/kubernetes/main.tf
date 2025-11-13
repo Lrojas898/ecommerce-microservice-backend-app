@@ -44,11 +44,11 @@ resource "kubernetes_namespace" "prod" {
   depends_on = [digitalocean_kubernetes_cluster.main]
 }
 
-resource "kubernetes_namespace" "staging" {
+resource "kubernetes_namespace" "dev" {
   metadata {
-    name = "staging"
+    name = "dev"
     labels = merge(var.labels, {
-      environment = "staging"
+      environment = "development"
     })
   }
 

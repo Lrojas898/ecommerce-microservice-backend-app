@@ -46,7 +46,7 @@ output "namespaces" {
   description = "Created Kubernetes namespaces"
   value = {
     prod       = kubernetes_namespace.prod.metadata[0].name
-    staging    = kubernetes_namespace.staging.metadata[0].name
+    dev        = kubernetes_namespace.dev.metadata[0].name
     tracing    = kubernetes_namespace.tracing.metadata[0].name
     monitoring = kubernetes_namespace.monitoring.metadata[0].name
   }
