@@ -180,16 +180,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+      - name: Configure kubectl using doctl
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          CLUSTER_NAME="ecommerce-microservices-prod-cluster"
+          CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "$CLUSTER_NAME" | awk '{print $1}')
+
+          if [ -z "$CLUSTER_ID" ]; then
+            echo "❌ Error: Cluster '$CLUSTER_NAME' not found"
+            exit 1
+          fi
+
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
 
       - name: Deploy service-discovery
         run: |
@@ -233,16 +245,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+      - name: Configure kubectl using doctl
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          CLUSTER_NAME="ecommerce-microservices-prod-cluster"
+          CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "$CLUSTER_NAME" | awk '{print $1}')
+
+          if [ -z "$CLUSTER_ID" ]; then
+            echo "❌ Error: Cluster '$CLUSTER_NAME' not found"
+            exit 1
+          fi
+
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
 
       - name: Deploy ${{ matrix.service }}
         run: |
@@ -283,16 +307,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+      - name: Configure kubectl using doctl
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          CLUSTER_NAME="ecommerce-microservices-prod-cluster"
+          CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "$CLUSTER_NAME" | awk '{print $1}')
+
+          if [ -z "$CLUSTER_ID" ]; then
+            echo "❌ Error: Cluster '$CLUSTER_NAME' not found"
+            exit 1
+          fi
+
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
 
       - name: Deploy api-gateway
         run: |
@@ -329,16 +365,28 @@ jobs:
     runs-on: ubuntu-latest
     needs: [initialize, deploy-api-gateway]
     steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+      - name: Configure kubectl using doctl
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          CLUSTER_NAME="ecommerce-microservices-prod-cluster"
+          CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "$CLUSTER_NAME" | awk '{print $1}')
+
+          if [ -z "$CLUSTER_ID" ]; then
+            echo "❌ Error: Cluster '$CLUSTER_NAME' not found"
+            exit 1
+          fi
+
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
 
       - name: Verify deployment
         run: |
@@ -381,16 +429,28 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+      - name: Configure kubectl using doctl
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          CLUSTER_NAME="ecommerce-microservices-prod-cluster"
+          CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "$CLUSTER_NAME" | awk '{print $1}')
+
+          if [ -z "$CLUSTER_ID" ]; then
+            echo "❌ Error: Cluster '$CLUSTER_NAME' not found"
+            exit 1
+          fi
+
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
 
       - name: Wait for services ready
         run: |
