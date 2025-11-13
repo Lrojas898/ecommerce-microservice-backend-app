@@ -38,7 +38,7 @@ resource "helm_release" "ingress_nginx" {
         metrics = {
           enabled = true
           serviceMonitor = {
-            enabled = true
+            enabled = false  # Disabled - Prometheus not installed yet
           }
         }
         resources = {

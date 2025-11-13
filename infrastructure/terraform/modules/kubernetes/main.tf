@@ -80,21 +80,24 @@ resource "kubernetes_namespace" "monitoring" {
 # ============================================================
 # Storage Classes
 # ============================================================
+# NOTE: DigitalOcean automatically creates the 'do-block-storage' storage class
+# when the cluster is created. We don't need to create it manually.
+# If you need a custom storage class, uncomment and modify below:
 
-resource "kubernetes_storage_class" "do_block_storage" {
-  metadata {
-    name = "do-block-storage"
-  }
-
-  storage_provisioner = "dobs.csi.digitalocean.com"
-  reclaim_policy      = "Retain"
-  parameters = {
-    type = "pd-ssd"
-  }
-  allow_volume_expansion = true
-
-  depends_on = [digitalocean_kubernetes_cluster.main]
-}
+# resource "kubernetes_storage_class" "do_block_storage" {
+#   metadata {
+#     name = "do-block-storage"
+#   }
+#
+#   storage_provisioner = "dobs.csi.digitalocean.com"
+#   reclaim_policy      = "Retain"
+#   parameters = {
+#     type = "pd-ssd"
+#   }
+#   allow_volume_expansion = true
+#
+#   depends_on = [digitalocean_kubernetes_cluster.main]
+# }
 
 # ============================================================
 # Digital Ocean Container Registry Integration (Optional)
