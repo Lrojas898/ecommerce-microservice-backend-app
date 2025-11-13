@@ -406,15 +406,17 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
         run: |
           cd tests/performance
 
           echo "Running SonarQube analysis on performance test code..."
 
           ./sonar-scanner/bin/sonar-scanner \
+            -Dsonar.organization=${SONAR_ORGANIZATION} \
             -Dsonar.host.url=${SONAR_HOST_URL} \
             -Dsonar.token=${SONAR_TOKEN} \
-            -Dsonar.projectKey=ecommerce-performance-tests \
+            -Dsonar.projectKey=ecommerce-deploy-ingesoftv_ecommerce-microservice-backend-app_performance-tests \
             -Dsonar.projectName="E-Commerce Performance Tests" \
             -Dsonar.projectVersion=1.0 \
             -Dsonar.sources=. \
@@ -425,7 +427,7 @@ jobs:
             -Dsonar.sourceEncoding=UTF-8 || echo "⚠️ SonarQube analysis failed (non-blocking)"
 
           echo "✓ SonarQube analysis completed"
-          echo "View results at: ${SONAR_HOST_URL}/dashboard?id=ecommerce-performance-tests"
+          echo "View results at: ${SONAR_HOST_URL}/dashboard?id=ecommerce-deploy-ingesoftv_ecommerce-microservice-backend-app_performance-tests"
 
   summary:
     name: Performance Test Summary

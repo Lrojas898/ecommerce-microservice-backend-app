@@ -210,6 +210,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
         run: |
           echo "Running SonarQube analysis for changed services..."
 
@@ -219,7 +220,8 @@ jobs:
             echo "Analyzing ${service}..."
             mvn sonar:sonar \
               -pl ${service} \
-              -Dsonar.projectKey=ecommerce-${service} \
+              -Dsonar.organization=${SONAR_ORGANIZATION} \
+              -Dsonar.projectKey=ecommerce-deploy-ingesoftv_ecommerce-microservice-backend-app_${service} \
               -Dsonar.projectName="E-Commerce ${service}" \
               -Dsonar.host.url=${SONAR_HOST_URL} \
               -Dsonar.token=${SONAR_TOKEN} \

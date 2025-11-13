@@ -548,14 +548,16 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
         run: |
           cd tests
 
           echo "Running SonarQube analysis on E2E tests..."
           mvn sonar:sonar \
+            -Dsonar.organization=${SONAR_ORGANIZATION} \
             -Dsonar.host.url=${SONAR_HOST_URL} \
             -Dsonar.token=${SONAR_TOKEN} \
-            -Dsonar.projectKey=ecommerce-e2e-tests \
+            -Dsonar.projectKey=ecommerce-deploy-ingesoftv_ecommerce-microservice-backend-app_e2e-tests \
             -Dsonar.projectName="E-Commerce E2E Tests" \
             -Dsonar.sources=src/test/java \
             -Dsonar.tests=src/test/java \

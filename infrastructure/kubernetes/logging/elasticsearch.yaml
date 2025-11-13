@@ -83,8 +83,9 @@ spec:
             # Disable security for simplicity (enable in production!)
             - name: xpack.security.enabled
               value: "false"
+            # Java heap: 50% of memory limit (best practice)
             - name: ES_JAVA_OPTS
-              value: "-Xms256m -Xmx256m"
+              value: "-Xms1g -Xmx1g"
             # Disable ML features to save resources
             - name: xpack.ml.enabled
               value: "false"
@@ -98,11 +99,11 @@ spec:
               mountPath: /usr/share/elasticsearch/data
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
               memory: "1Gi"
               cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
           readinessProbe:
             httpGet:
               path: /_cluster/health
@@ -121,10 +122,20 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: elasticsearch-pvc
-      # Increase vm.max_map_count for Elasticsearch
+      # Init containers
       initContainers:
+        # Increase vm.max_map_count for Elasticsearch
         - name: increase-vm-max-map
           image: busybox:1.35
           command: ["sysctl", "-w", "vm.max_map_count=262144"]
           securityContext:
             privileged: true
+        # Fix permissions on data volume
+        - name: fix-permissions
+          image: busybox:1.35
+          command: ["sh", "-c", "chown -R 1000:1000 /usr/share/elasticsearch/data"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
