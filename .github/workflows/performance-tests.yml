@@ -101,22 +101,35 @@ jobs:
         run: |
           echo "Getting API Gateway URL from Kubernetes..."
 
-          # Get NodePort
-          NODE_PORT=$(kubectl get svc api-gateway -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+          # Try to get Ingress IP first (preferred method for prod)
+          INGRESS_IP=$(kubectl get ingress ecommerce-ingress -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
-          if [ -z "$NODE_PORT" ]; then
-            echo "❌ Could not get NodePort"
-            exit 1
+          if [ -n "$INGRESS_IP" ]; then
+            API_URL="http://${INGRESS_IP}"
+            echo "✓ Using Ingress IP: ${INGRESS_IP}"
+          else
+            echo "⚠️ No Ingress found, trying NodePort..."
+
+            # Fallback to NodePort method
+            NODE_PORT=$(kubectl get svc api-gateway -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+
+            if [ -z "$NODE_PORT" ]; then
+              echo "❌ Could not get NodePort either"
+              echo "Available services:"
+              kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+              exit 1
+            fi
+
+            # Get Node IP
+            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}' 2>/dev/null || echo "")
+
+            if [ -z "$NODE_IP" ]; then
+              NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+            fi
+
+            API_URL="http://${NODE_IP}:${NODE_PORT}"
+            echo "✓ Using NodePort: ${NODE_IP}:${NODE_PORT}"
           fi
-
-          # Get Node IP (try external IP first, then internal)
-          NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}' 2>/dev/null || echo "")
-
-          if [ -z "$NODE_IP" ]; then
-            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-          fi
-
-          API_URL="http://${NODE_IP}:${NODE_PORT}"
 
           echo "api_gateway_url=${API_URL}" >> $GITHUB_OUTPUT
 
