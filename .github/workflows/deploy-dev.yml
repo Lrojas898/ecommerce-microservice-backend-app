@@ -407,6 +407,7 @@ jobs:
           if [ $PROBLEM_PODS -gt 0 ]; then
             echo "⚠️ Warning: $PROBLEM_PODS pod(s) not in Running state"
             kubectl get pods -n ${{ env.K8S_NAMESPACE }} --field-selector=status.phase!=Running,status.phase!=Succeeded
+            exit 1
           else
             echo "✓ All pods are running"
           fi
@@ -556,9 +557,9 @@ jobs:
             -Dsonar.token=${SONAR_TOKEN} \
             -Dsonar.projectKey=ecommerce-e2e-tests \
             -Dsonar.projectName="E-Commerce E2E Tests" \
-            -Dsonar.sources=src/main/java \
+            -Dsonar.sources=src/test/java \
             -Dsonar.tests=src/test/java \
-            -Dsonar.java.binaries=target/classes,target/test-classes \
+            -Dsonar.java.binaries=target/test-classes \
             -Dsonar.junit.reportPaths=target/failsafe-reports \
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml || echo "⚠️ SonarQube analysis failed (non-blocking)"
 
