@@ -110,8 +110,14 @@ jobs:
           INGRESS_IP=$(kubectl get ingress -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
           if [ -n "$INGRESS_IP" ] && [ "$INGRESS_IP" != "null" ]; then
-            API_URL="http://${INGRESS_IP}"
-            echo "✓ Using Ingress IP: ${INGRESS_IP}"
+            # Add namespace-specific path
+            if [ "${{ env.K8S_NAMESPACE }}" == "dev" ]; then
+              API_URL="http://${INGRESS_IP}/dev"
+              echo "✓ Using Ingress IP with /dev path: ${INGRESS_IP}/dev"
+            else
+              API_URL="http://${INGRESS_IP}"
+              echo "✓ Using Ingress IP: ${INGRESS_IP}"
+            fi
           else
             echo "⚠️ No Ingress IP found, trying alternative methods..."
 
