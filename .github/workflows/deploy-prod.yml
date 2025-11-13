@@ -543,7 +543,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          files: tests/target/failsafe-reports/*.xml
+          files: tests/target/failsafe-reports/TEST-*.xml
           check_name: E2E Test Results (Production)
 
   sonarqube-e2e-tests:
