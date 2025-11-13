@@ -80,6 +80,8 @@ spec:
       labels:
         app: prometheus
     spec:
+      securityContext:
+        runAsUser: 0
       serviceAccountName: prometheus
       containers:
         - name: prometheus

@@ -27,6 +27,10 @@ spec:
       app: product-service
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+        prometheus.io/path: "/actuator/prometheus"
       labels:
         app: product-service
     spec:

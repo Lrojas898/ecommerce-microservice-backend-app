@@ -27,6 +27,10 @@ spec:
       app: favourite-service
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8086"
+        prometheus.io/path: "/actuator/prometheus"
       labels:
         app: favourite-service
     spec:
