@@ -72,16 +72,29 @@ jobs:
     outputs:
       api_gateway_url: ${{ steps.get-url.outputs.api_gateway_url }}
     steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+      - name: Configure kubectl using doctl
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          CLUSTER_NAME="ecommerce-microservices-prod-cluster"
+          CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "$CLUSTER_NAME" | awk '{print $1}')
+
+          if [ -z "$CLUSTER_ID" ]; then
+            echo "❌ Error: Cluster '$CLUSTER_NAME' not found"
+            exit 1
+          fi
+
+          echo "✓ Found cluster ID: $CLUSTER_ID"
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
 
       - name: Get API Gateway URL
         id: get-url
@@ -138,16 +151,29 @@ jobs:
             fi
           done
 
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
 
-      - name: Configure kubectl
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+      - name: Configure kubectl using doctl
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
-          chmod 600 ~/.kube/config
+          CLUSTER_NAME="ecommerce-microservices-prod-cluster"
+          CLUSTER_ID=$(doctl kubernetes cluster list --format ID,Name --no-header | grep "$CLUSTER_NAME" | awk '{print $1}')
+
+          if [ -z "$CLUSTER_ID" ]; then
+            echo "❌ Error: Cluster '$CLUSTER_NAME' not found"
+            exit 1
+          fi
+
+          echo "✓ Found cluster ID: $CLUSTER_ID"
+          doctl kubernetes cluster kubeconfig save $CLUSTER_ID
+          kubectl config set-context --current --namespace=${{ env.K8S_NAMESPACE }}
 
       - name: Check Kubernetes services
         run: |
