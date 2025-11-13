@@ -1,4 +1,14 @@
 # ============================================================
+# Wait for cluster to be ready before installing Helm charts
+# ============================================================
+
+resource "time_sleep" "wait_for_cluster" {
+  depends_on = [var.cluster_dependency]
+
+  create_duration = "60s"  # Wait 60 seconds for cluster to stabilize
+}
+
+# ============================================================
 # NGINX Ingress Controller
 # ============================================================
 
@@ -45,9 +55,23 @@ resource "helm_release" "ingress_nginx" {
     })
   ]
 
-  timeout = 600
+  timeout = 900  # Increased from 600 to 900 seconds (15 minutes)
+  wait    = true
+  wait_for_jobs = true
 
-  depends_on = [var.cluster_dependency]
+  depends_on = [time_sleep.wait_for_cluster]
+}
+
+# ============================================================
+# Wait for Ingress NGINX to be ready before installing Cert-Manager
+# ============================================================
+
+resource "time_sleep" "wait_for_ingress" {
+  count = var.enable_ingress_nginx && var.enable_cert_manager ? 1 : 0
+
+  depends_on = [helm_release.ingress_nginx]
+
+  create_duration = "30s"  # Wait 30 seconds for Ingress NGINX to stabilize
 }
 
 # ============================================================
@@ -75,9 +99,14 @@ resource "helm_release" "cert_manager" {
     value = "cert-manager"
   }
 
-  timeout = 600
+  timeout = 900  # Increased from 600 to 900 seconds (15 minutes)
+  wait    = true
+  wait_for_jobs = true
 
-  depends_on = [var.cluster_dependency]
+  depends_on = [
+    time_sleep.wait_for_cluster,
+    time_sleep.wait_for_ingress
+  ]
 }
 
 # ============================================================

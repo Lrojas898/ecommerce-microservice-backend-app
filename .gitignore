@@ -83,3 +83,4 @@ dist/
 ### Minikube ###
 minikube-linux-amd64
 minikube-*
+infrastructure/terraform/do-credentials.txt
