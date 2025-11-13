@@ -100,35 +100,50 @@ jobs:
         id: get-url
         run: |
           echo "Getting API Gateway URL from Kubernetes..."
+          echo "Namespace: ${{ env.K8S_NAMESPACE }}"
+
+          # Check if Ingress exists
+          echo "Checking for Ingress..."
+          kubectl get ingress -n ${{ env.K8S_NAMESPACE }}
 
           # Try to get Ingress IP first (preferred method for prod)
-          INGRESS_IP=$(kubectl get ingress ecommerce-ingress -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+          INGRESS_IP=$(kubectl get ingress -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
-          if [ -n "$INGRESS_IP" ]; then
+          if [ -n "$INGRESS_IP" ] && [ "$INGRESS_IP" != "null" ]; then
             API_URL="http://${INGRESS_IP}"
             echo "✓ Using Ingress IP: ${INGRESS_IP}"
           else
-            echo "⚠️ No Ingress found, trying NodePort..."
+            echo "⚠️ No Ingress IP found, trying alternative methods..."
 
-            # Fallback to NodePort method
-            NODE_PORT=$(kubectl get svc api-gateway -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+            # Try to get LoadBalancer IP from service
+            LB_IP=$(kubectl get svc api-gateway -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
-            if [ -z "$NODE_PORT" ]; then
-              echo "❌ Could not get NodePort either"
-              echo "Available services:"
-              kubectl get svc -n ${{ env.K8S_NAMESPACE }}
-              exit 1
+            if [ -n "$LB_IP" ] && [ "$LB_IP" != "null" ]; then
+              API_URL="http://${LB_IP}"
+              echo "✓ Using LoadBalancer IP: ${LB_IP}"
+            else
+              # Fallback to NodePort method
+              NODE_PORT=$(kubectl get svc api-gateway -n ${{ env.K8S_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null || echo "")
+
+              if [ -z "$NODE_PORT" ]; then
+                echo "❌ Service is ClusterIP (no NodePort)"
+                echo "Available services:"
+                kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+                echo ""
+                echo "For ClusterIP services, use port-forward or configure Ingress"
+                exit 1
+              fi
+
+              # Get Node IP
+              NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}' 2>/dev/null || echo "")
+
+              if [ -z "$NODE_IP" ]; then
+                NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+              fi
+
+              API_URL="http://${NODE_IP}:${NODE_PORT}"
+              echo "✓ Using NodePort: ${NODE_IP}:${NODE_PORT}"
             fi
-
-            # Get Node IP
-            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="ExternalIP")].address}' 2>/dev/null || echo "")
-
-            if [ -z "$NODE_IP" ]; then
-              NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-            fi
-
-            API_URL="http://${NODE_IP}:${NODE_PORT}"
-            echo "✓ Using NodePort: ${NODE_IP}:${NODE_PORT}"
           fi
 
           echo "api_gateway_url=${API_URL}" >> $GITHUB_OUTPUT
