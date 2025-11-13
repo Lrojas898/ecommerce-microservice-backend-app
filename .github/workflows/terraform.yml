@@ -127,6 +127,8 @@ jobs:
           exit ${EXITCODE:-0}
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
         continue-on-error: true
 
       - name: Upload Plan
@@ -231,6 +233,8 @@ jobs:
         run: terraform plan -out=tfplan
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
 
       - name: Wait for manual approval
         if: github.event.inputs.auto_approve != 'true'
@@ -253,6 +257,8 @@ jobs:
           fi
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
 
       - name: Get Cluster Info
         id: cluster_info
@@ -341,6 +347,8 @@ jobs:
         run: terraform plan -destroy -out=destroy-plan
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
 
       - name: Wait for manual approval
         if: github.event.inputs.auto_approve != 'true'
@@ -364,6 +372,8 @@ jobs:
           fi
         env:
           DIGITALOCEAN_TOKEN: ${{ secrets.DO_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
 
       - name: Destroy Summary
         run: |
