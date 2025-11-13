@@ -5,7 +5,7 @@ metadata:
   labels:
     app: api-gateway
 spec:
-  type: LoadBalancer
+  type: ClusterIP  # Changed from LoadBalancer to use Ingress (saves $12/month)
   ports:
     - port: 80
       targetPort: 80

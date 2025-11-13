@@ -13,7 +13,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: standard  # Uncomment if using specific storage class
+  storageClassName: do-block-storage  # DigitalOcean Block Storage
 
 ---
 # Prometheus Service Account (for Kubernetes API access)
