@@ -313,10 +313,78 @@ jobs:
       - name: Image digest
         run: echo "Built and pushed ${{ secrets.DOCKER_USERNAME }}/${{ steps.dockerfile.outputs.service_name }}:${{ needs.detect-changes.outputs.version_tag }}"
 
+  trivy-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    needs: [detect-changes, docker-build-push]
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.changed_services_json) }}
+      fail-fast: false
+      max-parallel: 3
+    permissions:
+      contents: read
+      security-events: write  # Required for uploading SARIF results
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trim service name
+        id: service
+        run: |
+          SERVICE=$(echo "${{ matrix.service }}" | xargs)
+          echo "name=${SERVICE}" >> $GITHUB_OUTPUT
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ steps.service.outputs.name }}:${{ needs.detect-changes.outputs.version_tag }}
+          format: 'sarif'
+          output: 'trivy-results-${{ steps.service.outputs.name }}.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'  # No falla el build, solo reporta
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ steps.service.outputs.name }}.sarif'
+          category: 'trivy-${{ steps.service.outputs.name }}'
+
+      - name: Generate human-readable report
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ steps.service.outputs.name }}:${{ needs.detect-changes.outputs.version_tag }}
+          format: 'table'
+          output: 'trivy-report-${{ steps.service.outputs.name }}.txt'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy report as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-report-${{ steps.service.outputs.name }}
+          path: trivy-report-${{ steps.service.outputs.name }}.txt
+          retention-days: 30
+
+      - name: Display scan summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "  Security Scan: ${{ steps.service.outputs.name }}"
+          echo "========================================="
+          if [ -f "trivy-report-${{ steps.service.outputs.name }}.txt" ]; then
+            cat "trivy-report-${{ steps.service.outputs.name }}.txt"
+          fi
+          echo ""
+          echo "📊 Full report uploaded as artifact"
+          echo "🔒 SARIF results uploaded to GitHub Security tab"
+
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [detect-changes, docker-build-push]
+    needs: [detect-changes, docker-build-push, trivy-scan]
     if: always() && needs.detect-changes.outputs.has_changes == 'true'
     steps:
       - name: Display build summary
@@ -337,10 +405,14 @@ jobs:
           done
 
           echo ""
+          echo "🔒 Security scans completed with Trivy"
+          echo "   Check Security tab for vulnerability details"
+          echo ""
           echo "Next steps:"
-          echo "1. Update K8s manifests with new image tags"
-          echo "2. Deploy to dev: Use deploy-dev workflow"
-          echo "3. Deploy to prod: Use deploy-prod workflow (requires approval)"
+          echo "1. Review security scan results in Security tab"
+          echo "2. Update K8s manifests with new image tags"
+          echo "3. Deploy to dev: Use deploy-dev workflow"
+          echo "4. Deploy to prod: Use deploy-prod workflow (requires approval)"
           echo "========================================="
 
       - name: Check job status

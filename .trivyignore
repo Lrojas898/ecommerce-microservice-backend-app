@@ -1,0 +1,20 @@
+# Trivy Ignore File
+#
+# Este archivo permite ignorar vulnerabilidades específicas que:
+# - Ya han sido evaluadas y aceptadas (riesgo aceptado)
+# - Tienen mitigaciones en lugar
+# - No son aplicables a este contexto
+#
+# Formato: Un CVE por línea
+# Ejemplo: CVE-2021-12345
+#
+# Para más información: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
+
+# Ejemplo: Ignorar vulnerabilidades específicas (descomentar si es necesario)
+# CVE-2023-12345
+# CVE-2023-67890
+
+# IMPORTANTE: Documenta por qué se ignora cada CVE
+# Ejemplo:
+# CVE-2023-12345 - No afecta a nuestra configuración específica de JDK 11
+# CVE-2023-67890 - Mitigado por configuración de seguridad en Kubernetes
