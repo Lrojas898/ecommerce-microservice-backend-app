@@ -1,0 +1,7 @@
+Configurar RBAC para acceso a recursos
+Implementar TLS para servicios expuestos públicamente
+Definir un proceso formal de change management
+Implementar generación automática de releases Notes
+Documentar planes de rollback
+Implementar sistema de etiquetado de releases
+Diagrama de infraestructura
