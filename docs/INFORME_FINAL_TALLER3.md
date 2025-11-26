@@ -2,7 +2,7 @@
 
 ## 1. Visión General
 
-Este documento unifica y resume la documentación técnica existente en `docs/` y otros artefactos del repositorio `ecommerce-microservice-backend-app` para el Taller 3.
+Este documento unifica el trabajo realizado sobre el taller 3 de la materia de ingeniería de software V para el repositorio de e-commerce microservice app
 
 - **Arquitectura**: Plataforma de e‑commerce basada en microservicios Java/Spring Boot desplegada en Kubernetes (DigitalOcean Kubernetes – DOKS, runtime `containerd`).
 - **Namespaces principales**:
@@ -22,17 +22,9 @@ Este documento unifica y resume la documentación técnica existente en `docs/` 
 - **Registro de imágenes**: Docker Hub (`luisrojasc/*`).
 - **CI/CD**: Jenkins (Taller 2) y GitHub Actions (estado actual), ambos integrados con SonarQube, Trivy y Kubernetes.
 
-En el contexto del Taller 3 se realizaron principalmente trabajos sobre:
-
-- Automatización de versionado, tags y release notes en GitHub Actions.
-- Documentación y diseño de procedimientos de rollback alineados con la infraestructura real en Kubernetes.
-- Consolidación de documentación técnica dispersa (observabilidad, performance, seguridad) en este informe unificado.
-
 ---
 
 ## 2. Patrones de Arquitectura Implementados
-
-(Basado en `docs/PATRONES_ARQUITECTURA_IMPLEMENTADOS.md`)
 
 ### 2.1 Service Registry & Discovery
 
@@ -100,8 +92,6 @@ En el contexto del Taller 3 se realizaron principalmente trabajos sobre:
 
 ## 3. Acceso y Estado de Servicios
 
-(Basado en `docs/ACCESO_SERVICIOS.md`)
-
 ### 3.1 Ingress y Load Balancer
 
 - **Load Balancer**: IP pública `137.184.240.48` (DigitalOcean).
@@ -141,8 +131,6 @@ Además, se dispone de acceso interno con `kubectl port-forward` para depuració
 
 ## 4. Estrategia de Branching, Versionado y CI/CD
 
-(Basado en `docs/BRANCHING_STRATEGY.md` y `docs/TALLER2_README.md`, más los workflows de GitHub)
-
 ### 4.1 Branching Strategy
 
 - **`master`**: Código en estado de producción estable.
@@ -158,24 +146,7 @@ Además, se dispone de acceso interno con `kubectl port-forward` para depuració
   - `fix`: correcciones de errores (patch).
   - `feat!` o `BREAKING CHANGE`: cambios incompatibles (major).
 
-### 4.3 Pipelines Jenkins (Taller 2)
-
-- **Build** (`Jenkinsfile.build.local`):
-  - Compila y empaqueta todos los microservicios con Maven.
-  - Ejecuta pruebas unitarias por servicio.
-  - Construye imágenes Docker y las publica en Docker Hub.
-  - Ejecuta análisis SonarQube.
-
-- **Deploy Dev** (`Jenkinsfile.deploy-dev.local`):
-  - Despliega a Kubernetes namespace `dev`.
-  - Usa manifestos en `infrastructure/kubernetes/base/`.
-  - Ejecuta pruebas de integración básicas.
-
-- **Deploy Prod** (`Jenkinsfile.deploy-prod.local`):
-  - Despliegue a `prod` con aprobación manual.
-  - Ejecuta pruebas E2E completas y análisis de SonarQube sobre código de tests.
-
-### 4.4 GitHub Actions (Estado Actual)
+### 4.3 GitHub Actions (Estado Actual)
 
 - **Workflow de Build** (`.github/workflows/build.yml`):
   - Detecta servicios cambiados.
@@ -188,11 +159,15 @@ Además, se dispone de acceso interno con `kubectl port-forward` para depuració
     - Un **GitHub Release** asociado al tag, usando `RELEASE_NOTES.md` como cuerpo.
   - Esta lógica fue implementada específicamente para el Taller 3, evitando herramientas externas (semver CLI) y usando solo shell y GitHub Actions.
 
+![Pipeline dev](img/pipeline_dev.jpeg)
+
 - **Workflows de Deploy** (`deploy-dev.yml`, `deploy-prod.yml`):
   - Reciben como input un JSON `service_versions` para fijar versiones por servicio.
   - Configuran `kubectl` vía `doctl` hacia el cluster `ecommerce-microservices-prod-cluster`.
   - Despliegan primero `service-discovery`, luego microservicios, y finalmente `api-gateway`.
   - `deploy-prod.yml` incluye opciones para saltar E2E o forzar despliegue de todos los servicios.
+
+![Pipeline production](img/pipeline_production.jpeg)
 
 ---
 
@@ -200,25 +175,27 @@ Además, se dispone de acceso interno con `kubectl port-forward` para depuració
 
 ### 5.1 Monitoreo con Prometheus y Grafana
 
-(Basado en `docs/MONITORING_SETUP.md`)
-
 - **Prometheus**:
   - Desplegado en `monitoring` con PVC (`prometheus-pvc`).
   - Scrapea `/actuator/prometheus` de todos los servicios (`dev` y `prod`).
   - Configurado con rules para alertas (latencia, errores 5xx, CPU, memoria, circuit breakers, etc.).
+
+![prometheus](img/prometheus_list.jpeg)
 
 - **Grafana**:
   - Datasource Prometheus preconfigurado.
   - Dashboards para Spring Boot, JVM, HTTP, circuit breakers y overview de microservicios.
   - Autenticación básica (credenciales por defecto documentadas, a endurecer en producción).
 
+![grafana](img/grafana.jpeg)
+
 - **Alertmanager**:
   - Alertas críticas (`ServiceDown`, `APIGatewayDown`, `EurekaDown`, `HighHTTPErrorRate`, etc.).
   - Alertas de warning para degradación de performance y problemas de recursos.
 
-### 5.2 Logging con ELK
+![Alertmanager](img/alert_manager_detail.jpeg)
 
-(Basado en `docs/ESTADO_LOGGING.md`)
+### 5.2 Logging con ELK
 
 - **Estado**:
   - Directorio `infrastructure/kubernetes/logging/` con manifests para Elasticsearch, Kibana, Filebeat.
@@ -233,8 +210,6 @@ Además, se dispone de acceso interno con `kubectl port-forward` para depuració
   - (Opcional) Crear un Ingress `logging-ingress` para exponer Kibana en `http://137.184.240.48/kibana/`.
 
 ### 5.3 Distributed Tracing con Jaeger
-
-(Basado en `docs/DISTRIBUTED_TRACING.md` y secciones de `TALLER2_README.md`)
 
 - **Stack de tracing**:
   - Jaeger all‑in‑one en `tracing` (collector, query y UI).
@@ -255,8 +230,6 @@ Además, se dispone de acceso interno con `kubectl port-forward` para depuració
 ---
 
 ## 6. Estrategia de Pruebas
-
-(Basado en `docs/PERFORMANCE_TESTING_STRATEGY.md` y `docs/TALLER2_README.md`)
 
 ### 6.1 Pirámide de Pruebas
 
@@ -293,6 +266,10 @@ Además, se dispone de acceso interno con `kubectl port-forward` para depuració
   - p95 de tiempo de respuesta < 1s para endpoints de lectura y aceptable para flujos complejos.
   - No degradación significativa en pruebas de endurance.
 
+![Pipeline Performance](img/pipeline_performance.jpeg)
+
+![Locust](img/locust.jpeg)
+
 Durante las pruebas ejecutadas para el Taller:
 
 - Se identificaron errores 400 esperados (IDs aleatorios inexistentes) y errores 500 reales en algunos endpoints, diferenciándolos en el análisis de Locust.
@@ -301,8 +278,6 @@ Durante las pruebas ejecutadas para el Taller:
 ---
 
 ## 7. Seguridad: Escaneo de Vulnerabilidades
-
-(Basado en `docs/TRIVY_SECURITY_SCANNING.md`)
 
 ### 7.1 Trivy en GitHub Actions
 
@@ -319,6 +294,7 @@ Durante las pruebas ejecutadas para el Taller:
 ### 7.2 Uso Local
 
 - Instalación de Trivy (apt/brew) y uso de comandos como:
+
 ```bash
 trivy image luisrojasc/user-service:latest
 trivy image --severity CRITICAL,HIGH luisrojasc/user-service:latest
@@ -337,8 +313,6 @@ trivy image --severity CRITICAL,HIGH luisrojasc/user-service:latest
 ---
 
 ## 8. Procedimientos de Rollback
-
-(Basado en `docs/ROLLBACK_PROCEDURES.md`)
 
 ### 8.1 Criterios y Tipos
 
@@ -399,16 +373,6 @@ trivy image --severity CRITICAL,HIGH luisrojasc/user-service:latest
 - Estrategia de pruebas: unitarias, integración, E2E y performance (Locust) operativas.
 - Planes de rollback detallados alineados con la infraestructura real.
 - Integración de Trivy para escaneo de vulnerabilidades en imágenes.
-
-### 9.2 Pendiente / Mejoras Futuras
-
-- Desplegar efectivamente el stack ELK en `logging` y exponer Kibana vía Ingress.
-- Endurecer la seguridad en producción:
-  - JWT end‑to‑end estable.
-  - TLS real en Ingress (certificados válidos, no solo HTTP).
-  - RBAC más fino a nivel de Kubernetes (más allá del RBAC ya configurado para Prometheus).
-- Integrar de forma más estrecha los scripts de rollback en los workflows (por ejemplo, jobs de rollback preconfigurados en GitHub Actions).
-- Refinar alertas y dashboards según la experiencia de operación real.
 
 ---
 
